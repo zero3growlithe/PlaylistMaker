@@ -491,7 +491,7 @@ namespace PlaylistMaker.Services
                     else if (version == 0)
                     {
                         timescale = ReadBigEndian32(buffer, position + 16);
-                        duration = ReadBigEndian32(buffer, position + 20);
+                        duration = (ulong)ReadBigEndian32(buffer, position + 20);
                     }
                     else
                     {

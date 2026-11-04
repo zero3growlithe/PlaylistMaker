@@ -1284,7 +1284,7 @@ namespace PlaylistMaker
                 {
                     PlaylistFileService.Save(result.TargetPath!, ordered);
                     savedCount++;
-                    savedNames.Add(Path.GetFileName(result.TargetPath));
+                    savedNames.Add(Path.GetFileName(result.TargetPath!) ?? string.Empty);
                 }
                 catch (IOException exception)
                 {
