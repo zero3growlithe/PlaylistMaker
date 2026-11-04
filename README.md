@@ -13,6 +13,10 @@ Built with WPF on .NET 8. No external packages, no telemetry, no installer - one
 - **Alt+click a folder arrow** collapses that folder *and* every folder below it. Plain click collapses one level (recursive expand is deliberately not offered).
 
 **Playlist (right)**
+- **Tabs**, one playlist per tab. The `+` button adds a tab, double-clicking a tab label renames it (Enter commits, Escape cancels), the small **x** closes it, and middle-clicking the tab does the same. Dropping files onto a tab header adds them to *that* tab's playlist - same rules as dropping onto the list.
+- The tab name is the default file name when saving; the save dialog can of course change it.
+- Closing a tab that still has unsaved work asks whether to save first, and the app asks per tab before it exits.
+- Each tab has its own undo history and its own dirty marker (a `*` after the name).
 - Reorderable list: drag entries around, or move them with the keyboard.
 - Accepts drops from the tree, from Windows Explorer, and from the playlist itself.
 - Dropping a playlist file pulls in its entries instead of the file.

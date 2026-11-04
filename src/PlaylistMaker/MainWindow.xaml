@@ -3,7 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Playlist Maker" Height="780" Width="1320" MinHeight="540" MinWidth="920"
         Background="{StaticResource WindowBackground}"
-        PreviewKeyDown="OnWindowPreviewKeyDown">
+        PreviewKeyDown="OnWindowPreviewKeyDown"
+        Closing="OnWindowClosing">
     <Grid Margin="10">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -21,7 +22,7 @@
             <Button DockPanel.Dock="Left" Content="Refresh" Click="OnRefreshClick"
                     ToolTip="Reload the drives and re-check which playlist entries still exist." />
             <TextBlock Style="{StaticResource HintText}" Margin="12,0,0,0" TextTrimming="CharacterEllipsis"
-                       Text="Drag music into the playlist on the right. Alt+click a folder arrow to collapse the whole branch." />
+                       Text="Drag music onto a playlist tab. Alt+click a folder arrow to collapse the whole branch." />
         </DockPanel>
 
         <Grid Grid.Row="1">
@@ -68,17 +69,85 @@
             <GridSplitter Grid.Column="1" Width="10" HorizontalAlignment="Stretch"
                           Background="Transparent" ResizeBehavior="PreviousAndNext" />
 
-            <!-- ── Playlist ─────────────────────────────────────────────── -->
+            <!-- ── Playlist tabs + entries ───────────────────────────────── -->
             <DockPanel Grid.Column="2">
                 <Border DockPanel.Dock="Top" Margin="0,0,0,4">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="Playlist" Style="{StaticResource PanelHeaderText}" Margin="0,0,12,0" />
-                        <Button Content="Save" Click="OnSaveClick" ToolTip="Ctrl+S - always asks where to save" />
-                        <Button Content="Load" Click="OnLoadClick" />
-                        <Button Content="View in Explorer" Click="OnViewInExplorerClick" ToolTip="E" />
-                        <Button Content="Undo" Click="OnUndoClick" ToolTip="Ctrl+Z" />
-                        <Button Content="Redo" Click="OnRedoClick" ToolTip="Ctrl+Y" />
-                        <Button Content="Remove" Click="OnRemoveClick" ToolTip="Delete" />
+                    <StackPanel>
+                        <DockPanel Margin="0,0,0,4">
+                            <TextBlock DockPanel.Dock="Left" Text="Playlist" Style="{StaticResource PanelHeaderText}"
+                                       Margin="0,0,10,0" />
+                            <Button DockPanel.Dock="Right" Content="+" Click="OnAddTabClick"
+                                    MinWidth="26" Width="26" Margin="6,0,0,0" FontWeight="Bold"
+                                    ToolTip="Add a new playlist tab" />
+                            <ListBox x:Name="TabStrip" SelectionMode="Single" BorderThickness="0"
+                                     Background="Transparent" Padding="0"
+                                     SelectionChanged="OnTabSelectionChanged"
+                                     PreviewMouseDown="OnTabStripMouseDown"
+                                     MouseDoubleClick="OnTabStripDoubleClick"
+                                     AllowDrop="True"
+                                     DragOver="OnTabStripDragOver" Drop="OnTabStripDrop"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                     ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                                <ListBox.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ListBox.ItemsPanel>
+                                <ListBox.ItemContainerStyle>
+                                    <Style TargetType="ListBoxItem">
+                                        <Setter Property="Margin" Value="0,0,4,0" />
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="ListBoxItem">
+                                                    <Border x:Name="TabBorder" CornerRadius="6,6,0,0"
+                                                            BorderThickness="1,1,1,0" Margin="0,0,0,-1"
+                                                            BorderBrush="{StaticResource PanelBorder}"
+                                                            Background="#FFEDEFF2" Padding="9,4,6,4">
+                                                        <ContentPresenter />
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="TabBorder" Property="Background" Value="#FFE1E6EE" />
+                                                        </Trigger>
+                                                        <Trigger Property="IsSelected" Value="True">
+                                                            <Setter TargetName="TabBorder" Property="Background"
+                                                                    Value="{StaticResource PanelBackground}" />
+                                                            <Setter TargetName="TabBorder" Property="BorderBrush"
+                                                                    Value="{StaticResource AccentBrush}" />
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </ListBox.ItemContainerStyle>
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal" ToolTip="{Binding HeaderToolTip}">
+                                            <TextBlock Text="{Binding DisplayName}" MinWidth="36"
+                                                       Visibility="{Binding NameTextVisibility}" />
+                                            <TextBox Text="{Binding EditingName, UpdateSourceTrigger=PropertyChanged}"
+                                                     Style="{StaticResource TabRenameBox}"
+                                                     Visibility="{Binding EditorVisibility}"
+                                                     KeyDown="OnTabRenameKeyDown"
+                                                     LostFocus="OnTabRenameLostFocus" />
+                                            <Button Content="&#x2715;" Style="{StaticResource TabCloseButton}"
+                                                    Tag="{Binding}" Click="OnCloseTabClick"
+                                                    ToolTip="Close this playlist (middle click on the tab works too)" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </DockPanel>
+
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="Save" Click="OnSaveClick" ToolTip="Ctrl+S - always asks where to save" />
+                            <Button Content="Load" Click="OnLoadClick" ToolTip="Replaces the entries of the current tab" />
+                            <Button Content="View in Explorer" Click="OnViewInExplorerClick" ToolTip="E" />
+                            <Button Content="Undo" Click="OnUndoClick" ToolTip="Ctrl+Z" />
+                            <Button Content="Redo" Click="OnRedoClick" ToolTip="Ctrl+Y" />
+                            <Button Content="Remove" Click="OnRemoveClick" ToolTip="Delete" />
+                        </StackPanel>
                     </StackPanel>
                 </Border>
 

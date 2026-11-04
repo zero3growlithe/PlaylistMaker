@@ -1,13 +1,14 @@
 using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using PlaylistMaker.Models;
 using PlaylistMaker.Services;
 using PlaylistMaker.ViewModels;
@@ -25,14 +26,265 @@ namespace PlaylistMaker
         private Point playlistDragStart;
         private bool isExplorerDragPending;
         private bool isPlaylistDragPending;
+        private bool isSyncingTabSelection;
 
         public MainWindow()
         {
             InitializeComponent();
             ExplorerList.ItemsSource = viewModel.VisibleNodes;
-            PlaylistList.ItemsSource = viewModel.PlaylistEntries;
+            TabStrip.ItemsSource = viewModel.Tabs;
             viewModel.Initialize();
-            UpdateSummary("Ready.");
+            BindActiveTab();
+            UpdateSummary("Ready. Drag music onto the playlist or onto another tab.");
+        }
+
+        // ── Tabs ──────────────────────────────────────────────────────────
+        private void BindActiveTab()
+        {
+            PlaylistTab tab = viewModel.ActiveTab;
+            PlaylistList.ItemsSource = tab.Entries;
+
+            if (!ReferenceEquals(TabStrip.SelectedItem, tab))
+            {
+                isSyncingTabSelection = true;
+                TabStrip.SelectedItem = tab;
+                isSyncingTabSelection = false;
+            }
+
+            Title = "Playlist Maker - " + tab.DisplayName;
+            UpdateSummary(tab.Entries.Count == 0
+                ? "Tab \"" + tab.Name + "\" is empty."
+                : "Tab \"" + tab.Name + "\": " + tab.Entries.Count + " tracks.");
+        }
+
+        private void OnTabSelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (isSyncingTabSelection)
+            {
+                return;
+            }
+            PlaylistTab? tab = TabStrip.SelectedItem as PlaylistTab;
+            if (tab == null)
+            {
+                return;
+            }
+            viewModel.SetActiveTab(tab);
+            BindActiveTab();
+        }
+
+        private void OnAddTabClick(object sender, RoutedEventArgs e)
+        {
+            PlaylistTab tab = viewModel.CreateTab();
+            BindActiveTab();
+            BeginRename(tab);
+            UpdateSummary("Created tab \"" + tab.Name + "\".");
+        }
+
+        private void OnCloseTabClick(object sender, RoutedEventArgs e)
+        {
+            Button? button = sender as Button;
+            PlaylistTab? tab = button?.Tag as PlaylistTab;
+            if (tab != null)
+            {
+                CloseTab(tab);
+            }
+            e.Handled = true;
+        }
+
+        private void OnTabStripMouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ChangedButton != MouseButton.Middle)
+            {
+                return;
+            }
+            PlaylistTab? tab = GetTabFromSource(e.OriginalSource);
+            if (tab != null)
+            {
+                CloseTab(tab);
+                e.Handled = true;
+            }
+        }
+
+        private void OnTabStripDoubleClick(object sender, MouseButtonEventArgs e)
+        {
+            if (FindAncestor<Button>(e.OriginalSource as DependencyObject) != null)
+            {
+                return;
+            }
+            PlaylistTab? tab = GetTabFromSource(e.OriginalSource);
+            if (tab != null)
+            {
+                BeginRename(tab);
+                e.Handled = true;
+            }
+        }
+
+        private void BeginRename(PlaylistTab tab)
+        {
+            tab.EditingName = tab.Name;
+            tab.IsRenaming = true;
+            Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() =>
+            {
+                ListBoxItem? container = TabStrip.ItemContainerGenerator.ContainerFromItem(tab) as ListBoxItem;
+                if (container == null)
+                {
+                    return;
+                }
+                TextBox? editor = FindChild<TextBox>(container);
+                if (editor != null)
+                {
+                    editor.Focus();
+                    editor.SelectAll();
+                }
+            }));
+        }
+
+        private void CommitRename(PlaylistTab tab, bool accept)
+        {
+            if (!tab.IsRenaming)
+            {
+                return;
+            }
+            if (accept)
+            {
+                string typed = (tab.EditingName ?? string.Empty).Trim();
+                if (typed.Length > 0)
+                {
+                    tab.Name = typed;
+                }
+            }
+            tab.EditingName = tab.Name;
+            tab.IsRenaming = false;
+            if (ReferenceEquals(tab, viewModel.ActiveTab))
+            {
+                Title = "Playlist Maker - " + tab.DisplayName;
+            }
+        }
+
+        private void OnTabRenameKeyDown(object sender, KeyEventArgs e)
+        {
+            TextBox? editor = sender as TextBox;
+            PlaylistTab? tab = editor?.DataContext as PlaylistTab;
+            if (tab == null)
+            {
+                return;
+            }
+
+            if (e.Key == Key.Enter)
+            {
+                CommitRename(tab, true);
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Escape)
+            {
+                CommitRename(tab, false);
+                e.Handled = true;
+            }
+        }
+
+        private void OnTabRenameLostFocus(object sender, RoutedEventArgs e)
+        {
+            TextBox? editor = sender as TextBox;
+            PlaylistTab? tab = editor?.DataContext as PlaylistTab;
+            if (tab != null)
+            {
+                CommitRename(tab, true);
+            }
+        }
+
+        private void CloseTab(PlaylistTab tab)
+        {
+            if (tab.NeedsSavePrompt)
+            {
+                MessageBoxResult answer = MessageBox.Show(
+                    this,
+                    "Save playlist \"" + tab.Name + "\" before closing it?",
+                    "Playlist Maker",
+                    MessageBoxButton.YesNoCancel,
+                    MessageBoxImage.Question);
+
+                if (answer == MessageBoxResult.Cancel)
+                {
+                    return;
+                }
+                if (answer == MessageBoxResult.Yes && !SaveTabWithDialog(tab))
+                {
+                    return;
+                }
+            }
+
+            viewModel.RemoveTab(tab);
+            BindActiveTab();
+            UpdateSummary("Closed tab \"" + tab.Name + "\".");
+        }
+
+        private void OnWindowClosing(object sender, CancelEventArgs e)
+        {
+            foreach (PlaylistTab tab in viewModel.Tabs.ToList())
+            {
+                if (!tab.NeedsSavePrompt)
+                {
+                    continue;
+                }
+
+                MessageBoxResult answer = MessageBox.Show(
+                    this,
+                    "Save playlist \"" + tab.Name + "\" before closing Playlist Maker?",
+                    "Playlist Maker",
+                    MessageBoxButton.YesNoCancel,
+                    MessageBoxImage.Question);
+
+                if (answer == MessageBoxResult.Cancel)
+                {
+                    e.Cancel = true;
+                    return;
+                }
+                if (answer == MessageBoxResult.Yes && !SaveTabWithDialog(tab))
+                {
+                    e.Cancel = true;
+                    return;
+                }
+            }
+        }
+
+        private void OnTabStripDragOver(object sender, DragEventArgs e)
+        {
+            bool hasFiles = e.Data.GetDataPresent(DataFormats.FileDrop);
+            e.Effects = hasFiles ? DragDropEffects.Copy : DragDropEffects.None;
+            e.Handled = true;
+        }
+
+        private void OnTabStripDrop(object sender, DragEventArgs e)
+        {
+            if (!e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                return;
+            }
+            if (e.Data.GetDataPresent(PlaylistEntryFormat))
+            {
+                return;
+            }
+
+            PlaylistTab target = GetTabUnderPoint(e) ?? viewModel.ActiveTab;
+            viewModel.SetActiveTab(target);
+            BindActiveTab();
+
+            string[] droppedPaths = e.Data.GetData(DataFormats.FileDrop) as string[] ?? Array.Empty<string>();
+            HandleDroppedPaths(droppedPaths);
+            e.Handled = true;
+        }
+
+        private PlaylistTab? GetTabUnderPoint(DragEventArgs e)
+        {
+            DependencyObject? hit = TabStrip.InputHitTest(e.GetPosition(TabStrip)) as DependencyObject;
+            ListBoxItem? item = FindAncestor<ListBoxItem>(hit);
+            return item?.DataContext as PlaylistTab;
+        }
+
+        private PlaylistTab? GetTabFromSource(object source)
+        {
+            ListBoxItem? item = FindAncestor<ListBoxItem>(source as DependencyObject);
+            return item?.DataContext as PlaylistTab;
         }
 
         // ── Toolbar ───────────────────────────────────────────────────────
@@ -48,7 +300,7 @@ namespace PlaylistMaker
         {
             viewModel.RefreshEntryStates();
             viewModel.ReloadTree();
-            UpdateSummary("Refreshed.");
+            UpdateSummary("Refreshed every tab.");
         }
 
         // ── Explorer tree ─────────────────────────────────────────────────
@@ -154,7 +406,8 @@ namespace PlaylistMaker
                 return;
             }
             int added = viewModel.AddPaths(paths);
-            UpdateSummary("Added " + added + " entr" + (added == 1 ? "y" : "ies") + " to the playlist.");
+            BindActiveTab();
+            UpdateSummary("Added " + added + " entr" + (added == 1 ? "y" : "ies") + " to \"" + viewModel.ActiveTab.Name + "\".");
         }
 
         private void OnSaveSelectedAsPlaylistClick(object sender, RoutedEventArgs e)
@@ -175,11 +428,29 @@ namespace PlaylistMaker
         // ── Playlist panel ────────────────────────────────────────────────
         private void OnSaveClick(object sender, RoutedEventArgs e)
         {
-            SavePlaylistWithDialog();
+            if (SaveTabWithDialog(viewModel.ActiveTab))
+            {
+                UpdateSummary("Saved \"" + viewModel.ActiveTab.Name + "\".");
+            }
         }
 
         private void OnLoadClick(object sender, RoutedEventArgs e)
         {
+            PlaylistTab tab = viewModel.ActiveTab;
+            if (tab.Entries.Count > 0)
+            {
+                MessageBoxResult answer = MessageBox.Show(
+                    this,
+                    "Replace the " + tab.Entries.Count + " entries of tab \"" + tab.Name + "\" with the loaded playlist?",
+                    "Playlist Maker",
+                    MessageBoxButton.OKCancel,
+                    MessageBoxImage.Question);
+                if (answer != MessageBoxResult.OK)
+                {
+                    return;
+                }
+            }
+
             OpenFileDialog dialog = new OpenFileDialog
             {
                 Title = "Load playlist",
@@ -190,8 +461,10 @@ namespace PlaylistMaker
             {
                 return;
             }
+
             viewModel.LoadPlaylist(dialog.FileName);
-            UpdateSummary("Loaded " + dialog.FileName + ".");
+            BindActiveTab();
+            UpdateSummary("Loaded " + dialog.FileName + " into tab \"" + tab.Name + "\".");
         }
 
         private void OnViewInExplorerClick(object sender, RoutedEventArgs e)
@@ -203,6 +476,7 @@ namespace PlaylistMaker
         {
             if (viewModel.Undo())
             {
+                BindActiveTab();
                 UpdateSummary("Undo.");
             }
         }
@@ -211,6 +485,7 @@ namespace PlaylistMaker
         {
             if (viewModel.Redo())
             {
+                BindActiveTab();
                 UpdateSummary("Redo.");
             }
         }
@@ -340,7 +615,10 @@ namespace PlaylistMaker
 
             if (e.Key == Key.S)
             {
-                SavePlaylistWithDialog();
+                if (SaveTabWithDialog(viewModel.ActiveTab))
+                {
+                    UpdateSummary("Saved \"" + viewModel.ActiveTab.Name + "\".");
+                }
                 e.Handled = true;
                 return;
             }
@@ -348,6 +626,7 @@ namespace PlaylistMaker
             {
                 if (viewModel.Undo())
                 {
+                    BindActiveTab();
                     UpdateSummary("Undo.");
                 }
                 e.Handled = true;
@@ -357,6 +636,7 @@ namespace PlaylistMaker
             {
                 if (viewModel.Redo())
                 {
+                    BindActiveTab();
                     UpdateSummary("Redo.");
                 }
                 e.Handled = true;
@@ -377,6 +657,8 @@ namespace PlaylistMaker
             {
                 viewModel.RecordUndo();
                 entry.PointTo(window.SelectedFile!);
+                viewModel.ActiveTab.MarkDirty();
+                BindActiveTab();
                 UpdateSummary("Entry repointed at " + window.SelectedFile + ".");
                 return;
             }
@@ -416,12 +698,14 @@ namespace PlaylistMaker
 
             viewModel.RecordUndo();
             entry.PointTo(match);
+            viewModel.ActiveTab.MarkDirty();
 
-            List<PlaylistEntry> otherMissing = viewModel.PlaylistEntries
+            List<PlaylistEntry> otherMissing = viewModel.ActiveTab.Entries
                 .Where(item => item.IsMissing && !ReferenceEquals(item, entry))
                 .ToList();
             if (otherMissing.Count == 0)
             {
+                BindActiveTab();
                 UpdateSummary("Entry repointed at " + match + ".");
                 return;
             }
@@ -435,6 +719,7 @@ namespace PlaylistMaker
                 MessageBoxImage.Question);
             if (fixOthers != MessageBoxResult.Yes)
             {
+                BindActiveTab();
                 UpdateSummary("Entry repointed at " + match + ".");
                 return;
             }
@@ -446,24 +731,23 @@ namespace PlaylistMaker
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question);
             int fixedCount = MissingFileResolver.FixAll(otherMissing, folder!, recursive == MessageBoxResult.Yes);
+            BindActiveTab();
             UpdateSummary("Repointed " + (fixedCount + 1) + " entr" + (fixedCount == 0 ? "y" : "ies") + "; "
                 + (otherMissing.Count - fixedCount) + " still missing.");
         }
 
-        // ── Shared helpers ────────────────────────────────────────────────
-        private void SavePlaylistWithDialog()
+        // ── Saving ────────────────────────────────────────────────────────
+        private bool SaveTabWithDialog(PlaylistTab tab)
         {
-            List<string> paths = viewModel.SnapshotPaths();
+            List<string> paths = tab.SnapshotPaths();
             SaveFileDialog dialog = new SaveFileDialog
             {
-                Title = "Save playlist",
+                Title = "Save playlist \"" + tab.Name + "\"",
                 Filter = MusicFormats.PlaylistSaveFilter,
                 DefaultExt = ".m3u8",
                 AddExtension = true,
                 OverwritePrompt = true,
-                FileName = string.IsNullOrWhiteSpace(viewModel.CurrentPlaylistPath)
-                    ? "playlist.m3u8"
-                    : Path.GetFileName(viewModel.CurrentPlaylistPath!)
+                FileName = BuildSuggestedFileName(tab)
             };
 
             string? startDirectory = PathUtilities.GetMutualParentDirectory(paths);
@@ -474,25 +758,45 @@ namespace PlaylistMaker
 
             if (dialog.ShowDialog(this) != true)
             {
-                return;
+                return false;
             }
 
             try
             {
                 PlaylistFileService.Save(dialog.FileName, paths);
-                viewModel.CurrentPlaylistPath = dialog.FileName;
-                UpdateSummary("Saved " + paths.Count + " tracks to " + dialog.FileName + ".");
+                tab.FilePath = dialog.FileName;
+                tab.MarkClean();
+                tab.RaiseHeaderChanged();
+                if (ReferenceEquals(tab, viewModel.ActiveTab))
+                {
+                    Title = "Playlist Maker - " + tab.DisplayName;
+                }
+                return true;
             }
             catch (IOException exception)
             {
-                MessageBox.Show(this, "Could not save the playlist:\n\n" + exception.Message,
-                    "Playlist Maker", MessageBoxButton.OK, MessageBoxImage.Warning);
+                ShowSaveError(exception);
+                return false;
             }
             catch (UnauthorizedAccessException exception)
             {
-                MessageBox.Show(this, "Could not save the playlist:\n\n" + exception.Message,
-                    "Playlist Maker", MessageBoxButton.OK, MessageBoxImage.Warning);
+                ShowSaveError(exception);
+                return false;
             }
+        }
+
+        private void ShowSaveError(Exception exception)
+        {
+            MessageBox.Show(this, "Could not save the playlist:\n\n" + exception.Message,
+                "Playlist Maker", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+
+        private static string BuildSuggestedFileName(PlaylistTab tab)
+        {
+            string name = string.IsNullOrWhiteSpace(tab.Name) ? "playlist" : tab.Name.Trim();
+            char[] invalidCharacters = Path.GetInvalidFileNameChars();
+            string cleaned = new string(name.Select(character => invalidCharacters.Contains(character) ? '_' : character).ToArray());
+            return cleaned + ".m3u8";
         }
 
         private void SaveSelectionAsPlaylist()
@@ -539,13 +843,11 @@ namespace PlaylistMaker
             }
             catch (IOException exception)
             {
-                MessageBox.Show(this, "Could not save the playlist:\n\n" + exception.Message,
-                    "Playlist Maker", MessageBoxButton.OK, MessageBoxImage.Warning);
+                ShowSaveError(exception);
             }
             catch (UnauthorizedAccessException exception)
             {
-                MessageBox.Show(this, "Could not save the playlist:\n\n" + exception.Message,
-                    "Playlist Maker", MessageBoxButton.OK, MessageBoxImage.Warning);
+                ShowSaveError(exception);
             }
         }
 
@@ -562,6 +864,7 @@ namespace PlaylistMaker
             return "playlist.m3u8";
         }
 
+        // ── Drops and helpers ─────────────────────────────────────────────
         private void HandleDroppedPaths(IEnumerable<string> droppedPaths)
         {
             List<string> folders = droppedPaths.Where(Directory.Exists).ToList();
@@ -599,7 +902,8 @@ namespace PlaylistMaker
             }
 
             int added = viewModel.AddPaths(incoming);
-            UpdateSummary("Added " + added + " entr" + (added == 1 ? "y" : "ies") + " from the drop.");
+            BindActiveTab();
+            UpdateSummary("Added " + added + " entr" + (added == 1 ? "y" : "ies") + " to \"" + viewModel.ActiveTab.Name + "\".");
         }
 
         private List<string> CollectPathsFromSelection(List<FileSystemNode> selected, bool askScopeForFolders)
@@ -675,6 +979,7 @@ namespace PlaylistMaker
                 return;
             }
             int removed = viewModel.RemoveEntries(selected);
+            BindActiveTab();
             UpdateSummary("Removed " + removed + " entr" + (removed == 1 ? "y" : "ies") + ".");
         }
 
@@ -747,16 +1052,19 @@ namespace PlaylistMaker
 
         private void UpdateSummary(string message)
         {
-            int total = viewModel.PlaylistEntries.Count;
-            int missing = viewModel.MissingCount;
-            string summary = total + " track" + (total == 1 ? string.Empty : "s");
+            PlaylistTab tab = viewModel.ActiveTab;
+            int total = tab.Entries.Count;
+            int missing = tab.Entries.Count(entry => entry.IsMissing);
+            string summary = tab.Name + ": " + total + " track" + (total == 1 ? string.Empty : "s");
             if (missing > 0)
             {
                 summary += "   " + missing + " missing";
             }
-            summary += "     Ctrl+S save   Ctrl+Up/Down reorder   Delete remove   E show in Explorer   Ctrl+Z/Y undo/redo";
+            summary += "     Ctrl+S save   Ctrl+Up/Down reorder   Delete remove   E show in Explorer   Ctrl+Z/Y undo/redo"
+                + "   double-click a tab to rename, middle-click to close";
             PlaylistSummary.Text = summary;
             StatusText.Text = message;
+            Title = "Playlist Maker - " + tab.DisplayName;
         }
 
         private static T? FindAncestor<T>(DependencyObject? source) where T : DependencyObject
@@ -770,6 +1078,31 @@ namespace PlaylistMaker
                     return match;
                 }
                 current = VisualTreeHelper.GetParent(current);
+            }
+            return null;
+        }
+
+        private static T? FindChild<T>(DependencyObject? parent) where T : DependencyObject
+        {
+            if (parent == null)
+            {
+                return null;
+            }
+
+            int childCount = VisualTreeHelper.GetChildrenCount(parent);
+            for (int index = 0; index < childCount; index++)
+            {
+                DependencyObject child = VisualTreeHelper.GetChild(parent, index);
+                T? match = child as T;
+                if (match != null)
+                {
+                    return match;
+                }
+                T? nested = FindChild<T>(child);
+                if (nested != null)
+                {
+                    return nested;
+                }
             }
             return null;
         }

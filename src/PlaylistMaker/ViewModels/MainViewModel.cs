@@ -8,21 +8,27 @@ using PlaylistMaker.Services;
 
 namespace PlaylistMaker.ViewModels
 {
-    /// <summary>State of the window: the flattened explorer tree and the playlist being built.</summary>
+    /// <summary>State of the window: the flattened explorer tree plus the open playlist tabs.</summary>
     public sealed class MainViewModel
     {
         private readonly FileSystemTreeService treeService = new FileSystemTreeService();
+        private PlaylistTab activeTab;
+        private int tabCounter;
+
+        public MainViewModel()
+        {
+            tabCounter = 1;
+            activeTab = new PlaylistTab("Playlist 1");
+            Tabs.Add(activeTab);
+        }
 
         public ObservableCollection<FileSystemNode> VisibleNodes { get; } = new ObservableCollection<FileSystemNode>();
 
         public List<FileSystemNode> Roots { get; private set; } = new List<FileSystemNode>();
 
-        public ObservableCollection<PlaylistEntry> PlaylistEntries { get; } = new ObservableCollection<PlaylistEntry>();
+        public ObservableCollection<PlaylistTab> Tabs { get; } = new ObservableCollection<PlaylistTab>();
 
-        public PlaylistUndoStack UndoStack { get; } = new PlaylistUndoStack();
-
-        /// <summary>Where the playlist currently in the list was loaded from / last saved to.</summary>
-        public string? CurrentPlaylistPath { get; set; }
+        public PlaylistTab ActiveTab => activeTab;
 
         public bool ShowAllFiles
         {
@@ -38,13 +44,59 @@ namespace PlaylistMaker.ViewModels
             }
         }
 
-        public int MissingCount => PlaylistEntries.Count(entry => entry.IsMissing);
+        public int MissingCount => activeTab.Entries.Count(entry => entry.IsMissing);
 
         public void Initialize()
         {
             ReloadTree();
         }
 
+        // ── Tabs ──────────────────────────────────────────────────────────
+        public PlaylistTab CreateTab()
+        {
+            tabCounter++;
+            PlaylistTab tab = new PlaylistTab("Playlist " + tabCounter);
+            Tabs.Add(tab);
+            activeTab = tab;
+            return tab;
+        }
+
+        public void SetActiveTab(PlaylistTab tab)
+        {
+            if (tab != null && Tabs.Contains(tab))
+            {
+                activeTab = tab;
+            }
+        }
+
+        /// <summary>Removes a tab; a fresh empty one takes its place when it was the last one.</summary>
+        public PlaylistTab RemoveTab(PlaylistTab tab)
+        {
+            if (tab == null || !Tabs.Contains(tab))
+            {
+                return activeTab;
+            }
+
+            int index = Tabs.IndexOf(tab);
+            Tabs.Remove(tab);
+            if (Tabs.Count == 0)
+            {
+                tabCounter++;
+                PlaylistTab replacement = new PlaylistTab("Playlist " + tabCounter);
+                Tabs.Add(replacement);
+                activeTab = replacement;
+                return replacement;
+            }
+
+            if (ReferenceEquals(activeTab, tab))
+            {
+                int nextIndex = index >= Tabs.Count ? Tabs.Count - 1 : index;
+                activeTab = Tabs[nextIndex];
+            }
+            return activeTab;
+        }
+
+        // ── Explorer tree ─────────────────────────────────────────────────
         public void ReloadTree()
         {
             Roots = treeService.BuildRoots();
@@ -116,49 +168,42 @@ namespace PlaylistMaker.ViewModels
             }
         }
 
-        // ── Undo / redo ───────────────────────────────────────────────────
+        // ── Undo / redo (per tab) ─────────────────────────────────────────
         public void RecordUndo()
         {
-            UndoStack.Record(SnapshotPaths());
+            activeTab.UndoStack.Record(activeTab.SnapshotPaths());
         }
 
         public bool Undo()
         {
-            List<string>? restored = UndoStack.Undo(SnapshotPaths());
+            List<string>? restored = activeTab.UndoStack.Undo(activeTab.SnapshotPaths());
             if (restored == null)
             {
                 return false;
             }
-            RestoreFromPaths(restored);
+            activeTab.ReplaceEntries(restored);
+            activeTab.MarkDirty();
             return true;
         }
 
         public bool Redo()
         {
-            List<string>? restored = UndoStack.Redo(SnapshotPaths());
+            List<string>? restored = activeTab.UndoStack.Redo(activeTab.SnapshotPaths());
             if (restored == null)
             {
                 return false;
             }
-            RestoreFromPaths(restored);
+            activeTab.ReplaceEntries(restored);
+            activeTab.MarkDirty();
             return true;
         }
 
         public List<string> SnapshotPaths()
         {
-            return PlaylistEntries.Select(entry => entry.FullPath).ToList();
+            return activeTab.SnapshotPaths();
         }
 
-        private void RestoreFromPaths(List<string> paths)
-        {
-            PlaylistEntries.Clear();
-            foreach (string path in paths)
-            {
-                PlaylistEntries.Add(new PlaylistEntry(path));
-            }
-        }
-
-        // ── Playlist mutations ────────────────────────────────────────────
+        // ── Playlist mutations (always on the active tab) ─────────────────
         /// <summary>Adds music files and the contents of playlist files; unknown paths are ignored.</summary>
         public int AddPaths(IEnumerable<string> paths)
         {
@@ -175,21 +220,28 @@ namespace PlaylistMaker.ViewModels
             RecordUndo();
             foreach (string path in collected)
             {
-                PlaylistEntries.Add(new PlaylistEntry(path));
+                activeTab.Entries.Add(new PlaylistEntry(path));
             }
+            activeTab.MarkDirty();
             return collected.Count;
         }
 
         public void LoadPlaylist(string playlistPath)
         {
             List<string> entries = PlaylistFileService.Load(playlistPath);
+            bool tabWasEmpty = activeTab.Entries.Count == 0;
             RecordUndo();
-            PlaylistEntries.Clear();
-            foreach (string entry in entries)
+            activeTab.ReplaceEntries(entries);
+            activeTab.FilePath = playlistPath;
+            activeTab.MarkClean();
+            if (tabWasEmpty)
             {
-                PlaylistEntries.Add(new PlaylistEntry(entry));
+                string loadedName = Path.GetFileNameWithoutExtension(playlistPath);
+                if (!string.IsNullOrWhiteSpace(loadedName))
+                {
+                    activeTab.Name = loadedName;
+                }
             }
-            CurrentPlaylistPath = playlistPath;
         }
 
         public int RemoveEntries(IEnumerable<PlaylistEntry> entries)
@@ -204,10 +256,14 @@ namespace PlaylistMaker.ViewModels
             int removed = 0;
             foreach (PlaylistEntry entry in targets)
             {
-                if (PlaylistEntries.Remove(entry))
+                if (activeTab.Entries.Remove(entry))
                 {
                     removed++;
                 }
+            }
+            if (removed > 0)
+            {
+                activeTab.MarkDirty();
             }
             return removed;
         }
@@ -221,7 +277,8 @@ namespace PlaylistMaker.ViewModels
             }
 
             HashSet<PlaylistEntry> selection = new HashSet<PlaylistEntry>(entries);
-            int lastIndex = PlaylistEntries.Count - 1;
+            ObservableCollection<PlaylistEntry> list = activeTab.Entries;
+            int lastIndex = list.Count - 1;
             if (lastIndex < 0)
             {
                 return;
@@ -232,7 +289,7 @@ namespace PlaylistMaker.ViewModels
             {
                 for (int index = 1; index <= lastIndex; index++)
                 {
-                    if (selection.Contains(PlaylistEntries[index]) && !selection.Contains(PlaylistEntries[index - 1]))
+                    if (selection.Contains(list[index]) && !selection.Contains(list[index - 1]))
                     {
                         canMove = true;
                         break;
@@ -243,7 +300,7 @@ namespace PlaylistMaker.ViewModels
             {
                 for (int index = 0; index < lastIndex; index++)
                 {
-                    if (selection.Contains(PlaylistEntries[index]) && !selection.Contains(PlaylistEntries[index + 1]))
+                    if (selection.Contains(list[index]) && !selection.Contains(list[index + 1]))
                     {
                         canMove = true;
                         break;
@@ -259,40 +316,43 @@ namespace PlaylistMaker.ViewModels
             RecordUndo();
             if (direction < 0)
             {
-                for (int index = 0; index < PlaylistEntries.Count; index++)
+                for (int index = 0; index < list.Count; index++)
                 {
-                    if (!selection.Contains(PlaylistEntries[index]) || index == 0)
+                    if (!selection.Contains(list[index]) || index == 0)
                     {
                         continue;
                     }
-                    if (selection.Contains(PlaylistEntries[index - 1]))
+                    if (selection.Contains(list[index - 1]))
                     {
                         continue;
                     }
-                    PlaylistEntries.Move(index, index - 1);
+                    list.Move(index, index - 1);
                 }
             }
             else
             {
-                for (int index = PlaylistEntries.Count - 1; index >= 0; index--)
+                for (int index = list.Count - 1; index >= 0; index--)
                 {
-                    if (!selection.Contains(PlaylistEntries[index]) || index == PlaylistEntries.Count - 1)
+                    if (!selection.Contains(list[index]) || index == list.Count - 1)
                     {
                         continue;
                     }
-                    if (selection.Contains(PlaylistEntries[index + 1]))
+                    if (selection.Contains(list[index + 1]))
                     {
                         continue;
                     }
-                    PlaylistEntries.Move(index, index + 1);
+                    list.Move(index, index + 1);
                 }
             }
+
+            activeTab.MarkDirty();
         }
 
         /// <summary>Re-inserts already selected entries at a new position (drag and drop inside the playlist).</summary>
         public void ReorderEntries(IReadOnlyList<PlaylistEntry> entries, int insertIndex)
         {
-            List<PlaylistEntry> moving = entries.Where(entry => PlaylistEntries.Contains(entry)).ToList();
+            ObservableCollection<PlaylistEntry> list = activeTab.Entries;
+            List<PlaylistEntry> moving = entries.Where(entry => list.Contains(entry)).ToList();
             if (moving.Count == 0)
             {
                 return;
@@ -302,33 +362,37 @@ namespace PlaylistMaker.ViewModels
             int targetIndex = insertIndex;
             foreach (PlaylistEntry entry in moving)
             {
-                int currentIndex = PlaylistEntries.IndexOf(entry);
+                int currentIndex = list.IndexOf(entry);
                 if (currentIndex >= 0 && currentIndex < targetIndex)
                 {
                     targetIndex--;
                 }
-                PlaylistEntries.Remove(entry);
+                list.Remove(entry);
             }
             if (targetIndex < 0)
             {
                 targetIndex = 0;
             }
-            if (targetIndex > PlaylistEntries.Count)
+            if (targetIndex > list.Count)
             {
-                targetIndex = PlaylistEntries.Count;
+                targetIndex = list.Count;
             }
             foreach (PlaylistEntry entry in moving)
             {
-                PlaylistEntries.Insert(targetIndex, entry);
+                list.Insert(targetIndex, entry);
                 targetIndex++;
             }
+            activeTab.MarkDirty();
         }
 
         public void RefreshEntryStates()
         {
-            foreach (PlaylistEntry entry in PlaylistEntries)
+            foreach (PlaylistTab tab in Tabs)
             {
-                entry.Refresh();
+                foreach (PlaylistEntry entry in tab.Entries)
+                {
+                    entry.Refresh();
+                }
             }
         }
 
