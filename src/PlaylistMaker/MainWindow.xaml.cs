@@ -427,31 +427,52 @@ namespace PlaylistMaker
         /// </summary>
         private void ToggleExpansion(FileSystemNode node, bool collapseRecursively, bool keepNodeSelected)
         {
-            List<string> selectedPaths = new List<string>();
+            bool wasSelected = false;
             foreach (FileSystemNode selected in GetSelectedNodes())
             {
-                selectedPaths.Add(selected.FullPath);
-            }
-
-            viewModel.ToggleExpand(node, collapseRecursively);
-
-            ExplorerList.SelectedItems.Clear();
-            foreach (FileSystemNode visible in viewModel.VisibleNodes)
-            {
-                if (selectedPaths.Any(candidate => string.Equals(candidate, visible.FullPath, StringComparison.OrdinalIgnoreCase)))
+                if (ReferenceEquals(selected, node))
                 {
-                    ExplorerList.SelectedItems.Add(visible);
+                    wasSelected = true;
+                    break;
                 }
             }
 
-            // collapsing can take the selected rows out of view entirely; the folder itself is the
-            // sensible place to land, but only for keyboard use - clicking a chevron must not select
-            if (keepNodeSelected && ExplorerList.SelectedItems.Count == 0)
+            // the flattened list is updated row by row, so the ListBox keeps its selection and its
+            // current row on its own - no reselection needed (that was what reset the anchor)
+            viewModel.ToggleExpand(node, collapseRecursively);
+
+            if (keepNodeSelected)
             {
-                ExplorerList.SelectedItem = node;
+                if (!wasSelected || ExplorerList.SelectedItems.Count == 0)
+                {
+                    ExplorerList.SelectedItems.Clear();
+                    ExplorerList.SelectedItem = node;
+                }
+                FocusExplorerRow(node);
             }
 
             ExplorerList.ScrollIntoView(node);
+        }
+
+        /// <summary>
+        /// Gives the row keyboard focus, which is what makes Up/Down continue from there instead of
+        /// restarting at the top after the item containers were touched.
+        /// </summary>
+        private void FocusExplorerRow(FileSystemNode node)
+        {
+            ExplorerList.UpdateLayout();
+            ListBoxItem? container = ExplorerList.ItemContainerGenerator.ContainerFromItem(node) as ListBoxItem;
+            if (container == null)
+            {
+                ExplorerList.ScrollIntoView(node);
+                ExplorerList.UpdateLayout();
+                container = ExplorerList.ItemContainerGenerator.ContainerFromItem(node) as ListBoxItem;
+            }
+
+            if (container != null)
+            {
+                container.Focus();
+            }
         }
 
         /// <summary>Left on a folded folder walks up the tree to the folder that contains it.</summary>
@@ -477,6 +498,7 @@ namespace PlaylistMaker
             ExplorerList.SelectedItems.Clear();
             ExplorerList.SelectedItem = parent;
             ExplorerList.ScrollIntoView(parent);
+            FocusExplorerRow(parent);
         }
 
         private void OnExplorerMouseDown(object sender, MouseButtonEventArgs e)

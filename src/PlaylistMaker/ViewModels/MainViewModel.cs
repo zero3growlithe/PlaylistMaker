@@ -103,25 +103,77 @@ namespace PlaylistMaker.ViewModels
             RebuildVisibleNodes();
         }
 
+        /// <summary>
+        /// Rebuilds the flattened tree with targeted inserts, moves and removes instead of a
+        /// Clear() + refill. Clearing makes the ListBox throw away both its selection and its
+        /// current row, and the current row is what keyboard navigation anchors on - a full clear
+        /// is why Up/Down used to jump back to the top of the tree after an expand or collapse.
+        /// </summary>
         public void RebuildVisibleNodes()
         {
-            VisibleNodes.Clear();
+            List<FileSystemNode> target = new List<FileSystemNode>();
             foreach (FileSystemNode root in Roots)
             {
-                AppendVisible(root);
+                AppendVisible(root, target);
+            }
+            ApplyVisibleNodes(target);
+        }
+
+        private void ApplyVisibleNodes(List<FileSystemNode> target)
+        {
+            HashSet<FileSystemNode> wanted = new HashSet<FileSystemNode>(target);
+
+            for (int index = VisibleNodes.Count - 1; index >= 0; index--)
+            {
+                if (!wanted.Contains(VisibleNodes[index]))
+                {
+                    VisibleNodes.RemoveAt(index);
+                }
+            }
+
+            for (int index = 0; index < target.Count; index++)
+            {
+                if (index < VisibleNodes.Count && ReferenceEquals(VisibleNodes[index], target[index]))
+                {
+                    continue;
+                }
+
+                int existingIndex = -1;
+                for (int scan = index + 1; scan < VisibleNodes.Count; scan++)
+                {
+                    if (ReferenceEquals(VisibleNodes[scan], target[index]))
+                    {
+                        existingIndex = scan;
+                        break;
+                    }
+                }
+
+                if (existingIndex >= 0)
+                {
+                    VisibleNodes.Move(existingIndex, index);
+                }
+                else
+                {
+                    VisibleNodes.Insert(index, target[index]);
+                }
+            }
+
+            while (VisibleNodes.Count > target.Count)
+            {
+                VisibleNodes.RemoveAt(VisibleNodes.Count - 1);
             }
         }
 
-        private void AppendVisible(FileSystemNode node)
+        private void AppendVisible(FileSystemNode node, List<FileSystemNode> target)
         {
-            VisibleNodes.Add(node);
+            target.Add(node);
             if (!node.IsExpanded)
             {
                 return;
             }
             foreach (FileSystemNode child in node.Children)
             {
-                AppendVisible(child);
+                AppendVisible(child, target);
             }
         }
 
