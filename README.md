@@ -12,6 +12,7 @@ Built with WPF on .NET 8. No external packages, no telemetry, no installer - one
 - Multi-select with Ctrl/Shift, drag the selection into the playlist, or use the right-click menu.
 - **Alt+click a folder arrow** collapses that folder *and* every folder below it. Plain click collapses one level (recursive expand is deliberately not offered).
 - Keyboard: **Right** expands the selected folder, **Left** collapses it, **Alt+Left** collapses it recursively. Up/Down/Home/End move the selection as usual.
+- **Enter** adds the selection to the open playlist: music files and playlist files go straight in (a playlist file expands into its entries), and folders ask first whether to take only the files directly inside or all subfolders.
 
 **Playlist (right)**
 - **Tabs**, one playlist per tab. The `+` button adds a tab, double-clicking a tab label renames it (Enter commits, Escape cancels), the small **x** closes it, and middle-clicking the tab does the same. Dropping files onto a tab header adds them to *that* tab's playlist - same rules as dropping onto the list.
@@ -42,6 +43,9 @@ When you save a single selected folder, the default playlist name is **that fold
 | `Ctrl+Up` / `Ctrl+Down` | Move selected entries up / down (works with multi-selection) |
 | `Delete` | Remove selected entries (no confirmation) |
 | `Ctrl+Z` / `Ctrl+Y` | Undo / redo |
+| `Ctrl+Tab` / `Ctrl+Shift+Tab` | Next / previous playlist tab (wraps around) |
+| `Ctrl+F4` | Close the open playlist tab (asks to save if it has unsaved work) |
+| `Enter` in the tree | Add the selection to the open playlist |
 | `E` | Show the selected entry in Windows Explorer |
 | `Alt+click` on a folder arrow | Collapse the folder and everything under it |
 | `Right` / `Left` in the tree | Expand / collapse the selected folder |

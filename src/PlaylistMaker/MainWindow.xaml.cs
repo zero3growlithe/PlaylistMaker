@@ -192,6 +192,32 @@ namespace PlaylistMaker
             }
         }
 
+        private void SwitchTab(int offset)
+        {
+            // leaving a tab mid-rename should keep what was typed instead of silently dropping it
+            foreach (PlaylistTab candidate in viewModel.Tabs)
+            {
+                if (candidate.IsRenaming)
+                {
+                    CommitRename(candidate, true);
+                }
+            }
+
+            int count = viewModel.Tabs.Count;
+            if (count < 2)
+            {
+                return;
+            }
+
+            int current = viewModel.Tabs.IndexOf(viewModel.ActiveTab);
+            int target = ((current + offset) % count + count) % count;
+            PlaylistTab tab = viewModel.Tabs[target];
+            viewModel.SetActiveTab(tab);
+            BindActiveTab();
+            TabStrip.ScrollIntoView(tab);
+            UpdateSummary("Switched to tab \"" + tab.Name + "\".");
+        }
+
         private void CloseTab(PlaylistTab tab)
         {
             if (tab.NeedsSavePrompt)
@@ -320,6 +346,13 @@ namespace PlaylistMaker
 
         private void OnExplorerKeyDown(object sender, KeyEventArgs e)
         {
+            if (e.Key == Key.Enter)
+            {
+                AddSelectionToPlaylist();
+                e.Handled = true;
+                return;
+            }
+
             FileSystemNode? node = ExplorerList.SelectedItem as FileSystemNode;
             if (node == null || !node.IsFolder)
             {
@@ -429,6 +462,12 @@ namespace PlaylistMaker
         }
 
         private void OnAddSelectedToPlaylistClick(object sender, RoutedEventArgs e)
+        {
+            AddSelectionToPlaylist();
+        }
+
+        /// <summary>Adds whatever is selected in the tree to the active tab (menu item and Enter share this).</summary>
+        private void AddSelectionToPlaylist()
         {
             List<string> paths = CollectPathsFromSelection(GetSelectedNodes(), true);
             if (paths.Count == 0)
@@ -648,6 +687,19 @@ namespace PlaylistMaker
                 return;
             }
 
+            if (e.Key == Key.Tab)
+            {
+                bool shiftHeld = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
+                SwitchTab(shiftHeld ? -1 : 1);
+                e.Handled = true;
+                return;
+            }
+            if (e.Key == Key.F4)
+            {
+                CloseTab(viewModel.ActiveTab);
+                e.Handled = true;
+                return;
+            }
             if (e.Key == Key.S)
             {
                 if (SaveTabWithDialog(viewModel.ActiveTab))
@@ -1226,7 +1278,7 @@ namespace PlaylistMaker
                 summary += "   " + missing + " missing";
             }
             summary += "     Ctrl+S save   Ctrl+Up/Down reorder   Delete remove   E show in Explorer   Ctrl+Z/Y undo/redo"
-                + "   double-click a tab to rename, middle-click to close";
+                + "   Ctrl+Tab / Ctrl+Shift+Tab switch tab   Ctrl+F4 close tab   Enter add from tree";
             PlaylistSummary.Text = summary;
             StatusText.Text = message;
             Title = "Playlist Maker - " + tab.DisplayName;
