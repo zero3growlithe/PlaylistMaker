@@ -11,11 +11,12 @@ Built with WPF on .NET 8. No external packages, no telemetry, no installer - one
 - Filtered by default to music and playlist files. Tick *Show all files* to see everything.
 - Multi-select with Ctrl/Shift, drag the selection into the playlist, or use the right-click menu.
 - **Alt+click a folder arrow** collapses that folder *and* every folder below it. Plain click collapses one level (recursive expand is deliberately not offered).
-- Keyboard: **Right** expands the selected folder, **Left** collapses it, **Alt+Left** collapses it recursively. Up/Down/Home/End move the selection as usual.
+- Keyboard: **Right** expands the selected folder, **Left** collapses it, **Alt+Left** collapses it recursively, and **Left on a folder that is already collapsed selects the folder that contains it**. Up/Down/Home/End move the selection as usual.
+- Expanding and collapsing never disturbs the selection - the rows you had selected stay selected, including with Ctrl/Shift multi-select.
 - **Enter** adds the selection to the open playlist: music files and playlist files go straight in (a playlist file expands into its entries), and folders ask first whether to take only the files directly inside or all subfolders.
 
 **Playlist (right)**
-- **Tabs**, one playlist per tab. The `+` button adds a tab, double-clicking a tab label renames it (Enter commits, Escape cancels), the small **x** closes it, and middle-clicking the tab does the same. Dropping files onto a tab header adds them to *that* tab's playlist - same rules as dropping onto the list.
+- **Tabs**, one playlist per tab. The `+` button adds a tab, double-clicking a tab label renames it (Enter commits, Escape cancels, and clicking anywhere outside the name box also commits), the small **x** closes it, and middle-clicking the tab does the same. Dropping files onto a tab header adds them to *that* tab's playlist - same rules as dropping onto the list.
 - The tab name is the default file name when saving; the save dialog can of course change it.
 - Closing a tab that still has unsaved work asks whether to save first, and the app asks per tab before it exits.
 - Each tab has its own undo history and its own dirty marker (a `*` after the name).

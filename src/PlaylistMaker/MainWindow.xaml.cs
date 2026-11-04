@@ -91,6 +91,34 @@ namespace PlaylistMaker
             e.Handled = true;
         }
 
+        private void OnWindowPreviewMouseDown(object sender, MouseButtonEventArgs e)
+        {
+            bool anyRenaming = viewModel.Tabs.Any(tab => tab.IsRenaming);
+            if (!anyRenaming)
+            {
+                return;
+            }
+
+            TextBox? editor = FindAncestor<TextBox>(e.OriginalSource as DependencyObject);
+            if (editor != null && editor.DataContext is PlaylistTab editedTab && editedTab.IsRenaming)
+            {
+                return;
+            }
+
+            // commits the typed name, exactly like clicking another tab or pressing Enter;
+            // the click itself is left alone so it still selects whatever it landed on
+            CommitPendingRenames();
+        }
+
+        private void CommitPendingRenames()
+        {
+            List<PlaylistTab> renamingTabs = viewModel.Tabs.Where(tab => tab.IsRenaming).ToList();
+            foreach (PlaylistTab tab in renamingTabs)
+            {
+                CommitRename(tab, true);
+            }
+        }
+
         private void OnTabStripMouseDown(object sender, MouseButtonEventArgs e)
         {
             if (e.ChangedButton != MouseButton.Middle)
@@ -195,13 +223,7 @@ namespace PlaylistMaker
         private void SwitchTab(int offset)
         {
             // leaving a tab mid-rename should keep what was typed instead of silently dropping it
-            foreach (PlaylistTab candidate in viewModel.Tabs)
-            {
-                if (candidate.IsRenaming)
-                {
-                    CommitRename(candidate, true);
-                }
-            }
+            CommitPendingRenames();
 
             int count = viewModel.Tabs.Count;
             if (count < 2)
@@ -340,7 +362,7 @@ namespace PlaylistMaker
             }
 
             bool altHeld = (Keyboard.Modifiers & ModifierKeys.Alt) == ModifierKeys.Alt;
-            viewModel.ToggleExpand(node, altHeld);
+            ToggleExpansion(node, altHeld, false);
             e.Handled = true;
         }
 
@@ -353,25 +375,96 @@ namespace PlaylistMaker
                 return;
             }
 
+            if (e.Key != Key.Right && e.Key != Key.Left)
+            {
+                return;
+            }
+
             FileSystemNode? node = ExplorerList.SelectedItem as FileSystemNode;
-            if (node == null || !node.IsFolder)
+            if (node == null)
             {
                 return;
             }
 
-            if (e.Key == Key.Right && !node.IsExpanded)
+            if (e.Key == Key.Right)
             {
-                viewModel.ToggleExpand(node, false);
+                if (node.IsFolder && !node.IsExpanded)
+                {
+                    ToggleExpansion(node, false, true);
+                }
                 e.Handled = true;
                 return;
             }
 
-            if (e.Key == Key.Left && node.IsExpanded)
+            bool altHeld = (Keyboard.Modifiers & ModifierKeys.Alt) == ModifierKeys.Alt;
+            if (node.IsFolder && node.IsExpanded)
             {
-                bool altHeld = (Keyboard.Modifiers & ModifierKeys.Alt) == ModifierKeys.Alt;
-                viewModel.ToggleExpand(node, altHeld);
-                e.Handled = true;
+                ToggleExpansion(node, altHeld, true);
             }
+            else if (node.IsFolder)
+            {
+                SelectParentFolder(node);
+            }
+            e.Handled = true;
+        }
+
+        /// <summary>
+        /// Expands or collapses a folder while keeping the selection on the same rows.
+        /// <see cref="MainViewModel.RebuildVisibleNodes"/> flushes and refills VisibleNodes,
+        /// which makes the ListBox drop its selection, so it has to be rebuilt from paths.
+        /// </summary>
+        private void ToggleExpansion(FileSystemNode node, bool collapseRecursively, bool keepNodeSelected)
+        {
+            List<string> selectedPaths = new List<string>();
+            foreach (FileSystemNode selected in GetSelectedNodes())
+            {
+                selectedPaths.Add(selected.FullPath);
+            }
+
+            viewModel.ToggleExpand(node, collapseRecursively);
+
+            ExplorerList.SelectedItems.Clear();
+            foreach (FileSystemNode visible in viewModel.VisibleNodes)
+            {
+                if (selectedPaths.Any(candidate => string.Equals(candidate, visible.FullPath, StringComparison.OrdinalIgnoreCase)))
+                {
+                    ExplorerList.SelectedItems.Add(visible);
+                }
+            }
+
+            // collapsing can take the selected rows out of view entirely; the folder itself is the
+            // sensible place to land, but only for keyboard use - clicking a chevron must not select
+            if (keepNodeSelected && ExplorerList.SelectedItems.Count == 0)
+            {
+                ExplorerList.SelectedItem = node;
+            }
+
+            ExplorerList.ScrollIntoView(node);
+        }
+
+        /// <summary>Left on a folded folder walks up the tree to the folder that contains it.</summary>
+        private void SelectParentFolder(FileSystemNode node)
+        {
+            string trimmedPath = node.FullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            string? parentPath = Path.GetDirectoryName(trimmedPath);
+            if (string.IsNullOrEmpty(parentPath))
+            {
+                return;
+            }
+
+            string wantedParent = parentPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            FileSystemNode? parent = viewModel.VisibleNodes.FirstOrDefault(candidate =>
+                string.Equals(candidate.FullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                              wantedParent,
+                              StringComparison.OrdinalIgnoreCase));
+            if (parent == null)
+            {
+                return;
+            }
+
+            ExplorerList.SelectedItems.Clear();
+            ExplorerList.SelectedItem = parent;
+            ExplorerList.ScrollIntoView(parent);
         }
 
         private void OnExplorerMouseDown(object sender, MouseButtonEventArgs e)
@@ -1294,7 +1387,11 @@ namespace PlaylistMaker
                 {
                     return match;
                 }
-                current = VisualTreeHelper.GetParent(current);
+
+                // a click on text can originate from a Run, which is a ContentElement - VisualTreeHelper
+                // throws for those, so fall back to the logical tree for non-visuals
+                bool isVisual = current is Visual || current is System.Windows.Media.Media3D.Visual3D;
+                current = isVisual ? VisualTreeHelper.GetParent(current) : LogicalTreeHelper.GetParent(current);
             }
             return null;
         }
