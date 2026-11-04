@@ -11,13 +11,14 @@ Built with WPF on .NET 8. No external packages, no telemetry, no installer - one
 - Filtered by default to music and playlist files. Tick *Show all files* to see everything.
 - Multi-select with Ctrl/Shift, drag the selection into the playlist, or use the right-click menu.
 - **Alt+click a folder arrow** collapses that folder *and* every folder below it. Plain click collapses one level (recursive expand is deliberately not offered).
+- Keyboard: **Right** expands the selected folder, **Left** collapses it, **Alt+Left** collapses it recursively. Up/Down/Home/End move the selection as usual.
 
 **Playlist (right)**
 - **Tabs**, one playlist per tab. The `+` button adds a tab, double-clicking a tab label renames it (Enter commits, Escape cancels), the small **x** closes it, and middle-clicking the tab does the same. Dropping files onto a tab header adds them to *that* tab's playlist - same rules as dropping onto the list.
 - The tab name is the default file name when saving; the save dialog can of course change it.
 - Closing a tab that still has unsaved work asks whether to save first, and the app asks per tab before it exits.
 - Each tab has its own undo history and its own dirty marker (a `*` after the name).
-- Reorderable list: drag entries around, or move them with the keyboard.
+- Reorderable list: drag entries around, or move them with the keyboard. Deleting keeps the selection at the same index (clamped to the new end), so repeated `Delete` presses work down a list without re-clicking.
 - Accepts drops from the tree, from Windows Explorer, and from the playlist itself.
 - Dropping a playlist file pulls in its entries instead of the file.
 - Broken entries stay in the list, marked with a yellow **!** and the tooltip *"File not found. Click here to fix."* Clicking it opens a picker where you choose the file itself or a folder to search by name; after one repair you are offered to fix the remaining broken entries with the same folder, optionally recursively.
@@ -26,9 +27,12 @@ Built with WPF on .NET 8. No external packages, no telemetry, no installer - one
 - Music file: *Add to playlist*.
 - Folder: *Add to playlist* and *Save as playlist...* - both ask whether to take only the files directly inside or all subfolders.
 - Multiple selected music files: *Add to playlist* and *Save as playlist...*.
+- **Multiple selected folders: *Save each as playlist...*** - walks the folders one by one and treats each exactly like *Save as playlist*: the folder name is the default file name, the file is written next to the music, and a small dialog per folder offers **Save**, **Skip this folder** and **Cancel all** (Cancel all stops the whole run instead of just the current folder).
 - Playlist file: *Add to playlist*.
 
-*Save as playlist* additionally asks for the order: ID3 tag track number, file name A-Z, file name Z-A, track name A-Z, track name Z-A, or random.
+*Save as playlist* additionally asks for the order: ID3 tag track number, file name A-Z, file name Z-A, track name A-Z, track name Z-A, or random. *Save each as playlist* asks that once and applies the same order to every folder.
+
+When you save a single selected folder, the default playlist name is **that folder's name** (sanitised for Windows).
 
 ## Keyboard shortcuts
 
@@ -40,6 +44,8 @@ Built with WPF on .NET 8. No external packages, no telemetry, no installer - one
 | `Ctrl+Z` / `Ctrl+Y` | Undo / redo |
 | `E` | Show the selected entry in Windows Explorer |
 | `Alt+click` on a folder arrow | Collapse the folder and everything under it |
+| `Right` / `Left` in the tree | Expand / collapse the selected folder |
+| `Alt+Left` in the tree | Collapse the selected folder recursively |
 
 The save dialog starts in the deepest folder that contains every track of the playlist, and writes **relative paths** (forward slashes) whenever the playlist sits on the same drive - so the folder and the playlist can be moved or copied together and keep working.
 

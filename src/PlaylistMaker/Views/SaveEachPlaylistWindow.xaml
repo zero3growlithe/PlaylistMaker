@@ -1,0 +1,40 @@
+<Window x:Class="PlaylistMaker.Views.SaveEachPlaylistWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Save each folder as a playlist" Height="286" Width="660"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        Background="{StaticResource WindowBackground}">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" x:Name="HeaderText" FontWeight="SemiBold" TextWrapping="Wrap"
+                   Margin="0,0,0,8" />
+
+        <TextBlock Grid.Row="1" x:Name="DetailText" Style="{StaticResource HintText}" TextWrapping="Wrap"
+                   Margin="0,0,0,12" />
+
+        <TextBlock Grid.Row="2" Text="File name:" Margin="0,0,0,4" />
+
+        <DockPanel Grid.Row="3">
+            <Button DockPanel.Dock="Right" Content="Browse..." Click="OnBrowseClick" Margin="6,0,0,0" />
+            <TextBox x:Name="FileNameBox" Padding="4" VerticalContentAlignment="Center"
+                     BorderBrush="{StaticResource PanelBorder}" />
+        </DockPanel>
+
+        <TextBlock Grid.Row="4" x:Name="FolderText" Style="{StaticResource HintText}" TextWrapping="Wrap"
+                   Margin="0,10,0,0" />
+
+        <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Save" IsDefault="True" Click="OnSaveClick" />
+            <Button Content="Skip this folder" Click="OnSkipClick" />
+            <Button Content="Cancel all" IsCancel="True" Click="OnCancelAllClick" />
+        </StackPanel>
+    </Grid>
+</Window>

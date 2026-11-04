@@ -318,6 +318,29 @@ namespace PlaylistMaker
             e.Handled = true;
         }
 
+        private void OnExplorerKeyDown(object sender, KeyEventArgs e)
+        {
+            FileSystemNode? node = ExplorerList.SelectedItem as FileSystemNode;
+            if (node == null || !node.IsFolder)
+            {
+                return;
+            }
+
+            if (e.Key == Key.Right && !node.IsExpanded)
+            {
+                viewModel.ToggleExpand(node, false);
+                e.Handled = true;
+                return;
+            }
+
+            if (e.Key == Key.Left && node.IsExpanded)
+            {
+                bool altHeld = (Keyboard.Modifiers & ModifierKeys.Alt) == ModifierKeys.Alt;
+                viewModel.ToggleExpand(node, altHeld);
+                e.Handled = true;
+            }
+        }
+
         private void OnExplorerMouseDown(object sender, MouseButtonEventArgs e)
         {
             explorerDragStart = e.GetPosition(ExplorerList);
@@ -390,6 +413,13 @@ namespace PlaylistMaker
                 menu.Items.Add(saveItem);
             }
 
+            if (selected.Count(node => node.IsFolder) > 1)
+            {
+                MenuItem saveEachItem = new MenuItem { Header = "Save each as playlist..." };
+                saveEachItem.Click += OnSaveEachFolderAsPlaylistClick;
+                menu.Items.Add(saveEachItem);
+            }
+
             menu.Items.Add(new Separator());
             MenuItem explorerItem = new MenuItem { Header = "View in Explorer" };
             explorerItem.Click += OnViewSelectedInExplorerClick;
@@ -413,6 +443,11 @@ namespace PlaylistMaker
         private void OnSaveSelectedAsPlaylistClick(object sender, RoutedEventArgs e)
         {
             SaveSelectionAsPlaylist();
+        }
+
+        private void OnSaveEachFolderAsPlaylistClick(object sender, RoutedEventArgs e)
+        {
+            SaveEachFolderAsPlaylist();
         }
 
         private void OnViewSelectedInExplorerClick(object sender, RoutedEventArgs e)
@@ -794,9 +829,7 @@ namespace PlaylistMaker
         private static string BuildSuggestedFileName(PlaylistTab tab)
         {
             string name = string.IsNullOrWhiteSpace(tab.Name) ? "playlist" : tab.Name.Trim();
-            char[] invalidCharacters = Path.GetInvalidFileNameChars();
-            string cleaned = new string(name.Select(character => invalidCharacters.Contains(character) ? '_' : character).ToArray());
-            return cleaned + ".m3u8";
+            return SanitizeFileName(name) + ".m3u8";
         }
 
         private void SaveSelectionAsPlaylist()
@@ -822,7 +855,7 @@ namespace PlaylistMaker
                 DefaultExt = ".m3u8",
                 AddExtension = true,
                 OverwritePrompt = true,
-                FileName = SuggestPlaylistFileName(ordered)
+                FileName = SuggestNameForSelection(GetSelectedNodes())
             };
 
             string? startDirectory = PathUtilities.GetMutualParentDirectory(ordered);
@@ -851,17 +884,129 @@ namespace PlaylistMaker
             }
         }
 
-        private static string SuggestPlaylistFileName(List<string> paths)
+        /// <summary>A single selected folder names the playlist after itself; anything else falls back.</summary>
+        private static string SuggestNameForSelection(IReadOnlyList<FileSystemNode> selected)
         {
-            if (paths.Count == 1)
+            if (selected.Count == 1 && selected[0].IsFolder)
             {
-                string? directoryName = Path.GetFileName(Path.GetDirectoryName(paths[0]) ?? string.Empty);
-                if (!string.IsNullOrWhiteSpace(directoryName))
+                string folderName = GetFolderDisplayName(selected[0].FullPath);
+                if (folderName.Length > 0)
                 {
-                    return directoryName + ".m3u8";
+                    return SanitizeFileName(folderName) + ".m3u8";
                 }
             }
             return "playlist.m3u8";
+        }
+
+        private static string GetFolderDisplayName(string folderPath)
+        {
+            string trimmed = folderPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            string name = Path.GetFileName(trimmed);
+            return name ?? string.Empty;
+        }
+
+        private static string SanitizeFileName(string name)
+        {
+            char[] invalidCharacters = Path.GetInvalidFileNameChars();
+            string cleaned = new string(name.Select(character => invalidCharacters.Contains(character) ? '_' : character).ToArray());
+            return cleaned.Trim().Length == 0 ? "playlist" : cleaned.Trim();
+        }
+
+        private void SaveEachFolderAsPlaylist()
+        {
+            List<FileSystemNode> folders = GetSelectedNodes().Where(node => node.IsFolder).ToList();
+            if (folders.Count == 0)
+            {
+                UpdateSummary("Select at least one folder.");
+                return;
+            }
+
+            string scopeMessage = "Save each of the " + folders.Count
+                + " selected folders as its own playlist: only the files directly inside them, or including subfolders?";
+            bool? recursive = ScopeSelectionWindow.Ask(this, scopeMessage);
+            if (recursive == null)
+            {
+                return;
+            }
+
+            PlaylistSortMode? mode = OrderSelectionWindow.Ask(this);
+            if (mode == null)
+            {
+                return;
+            }
+
+            int savedCount = 0;
+            int skippedCount = 0;
+            int emptyCount = 0;
+            List<string> savedNames = new List<string>();
+
+            for (int index = 0; index < folders.Count; index++)
+            {
+                string folderPath = folders[index].FullPath;
+                string folderName = GetFolderDisplayName(folderPath);
+                if (folderName.Length == 0)
+                {
+                    folderName = folderPath;
+                }
+
+                List<string> files = CollectMusicFromFolder(folderPath, recursive.Value);
+                if (files.Count == 0)
+                {
+                    emptyCount++;
+                    continue;
+                }
+
+                List<string> ordered = PlaylistOrdering.Apply(files, mode.Value);
+                string suggestedName = SanitizeFileName(folderName) + ".m3u8";
+
+                SaveEachPlaylistResult result = SaveEachPlaylistWindow.Ask(
+                    this, index + 1, folders.Count, folderName, ordered.Count, folderPath, suggestedName);
+
+                bool nothingToWrite = result.Action == SaveEachAction.Save && string.IsNullOrWhiteSpace(result.TargetPath);
+            if (result.Action == SaveEachAction.CancelAll || nothingToWrite)
+                {
+                    UpdateSummary("Stopped after " + savedCount + " playlist" + (savedCount == 1 ? string.Empty : "s")
+                        + ". " + skippedCount + " skipped, " + emptyCount + " empty.");
+                    return;
+                }
+                if (result.Action == SaveEachAction.Skip)
+                {
+                    skippedCount++;
+                    continue;
+                }
+
+                try
+                {
+                    PlaylistFileService.Save(result.TargetPath!, ordered);
+                    savedCount++;
+                    savedNames.Add(Path.GetFileName(result.TargetPath));
+                }
+                catch (IOException exception)
+                {
+                    ShowSaveError(exception);
+                    skippedCount++;
+                }
+                catch (UnauthorizedAccessException exception)
+                {
+                    ShowSaveError(exception);
+                    skippedCount++;
+                }
+            }
+
+            string summary = "Saved " + savedCount + " of " + folders.Count + " folders as playlists";
+            if (savedNames.Count > 0)
+            {
+                summary += " (" + string.Join(", ", savedNames) + ")";
+            }
+            if (skippedCount > 0)
+            {
+                summary += "; " + skippedCount + " skipped";
+            }
+            if (emptyCount > 0)
+            {
+                summary += "; " + emptyCount + " had no music";
+            }
+            UpdateSummary(summary + ".");
         }
 
         // ── Drops and helpers ─────────────────────────────────────────────
@@ -978,8 +1123,28 @@ namespace PlaylistMaker
             {
                 return;
             }
+
+            int firstIndex = int.MaxValue;
+            foreach (PlaylistEntry entry in selected)
+            {
+                int index = viewModel.ActiveTab.Entries.IndexOf(entry);
+                if (index >= 0 && index < firstIndex)
+                {
+                    firstIndex = index;
+                }
+            }
+
             int removed = viewModel.RemoveEntries(selected);
             BindActiveTab();
+
+            int remaining = viewModel.ActiveTab.Entries.Count;
+            if (remaining > 0 && firstIndex != int.MaxValue)
+            {
+                int targetIndex = Math.Min(firstIndex, remaining - 1);
+                PlaylistList.SelectedIndex = targetIndex;
+                PlaylistList.ScrollIntoView(PlaylistList.SelectedItem);
+            }
+
             UpdateSummary("Removed " + removed + " entr" + (removed == 1 ? "y" : "ies") + ".");
         }
 

@@ -39,6 +39,7 @@
                 </Border>
 
                 <ListBox x:Name="ExplorerList" SelectionMode="Extended"
+                         PreviewKeyDown="OnExplorerKeyDown"
                          PreviewMouseLeftButtonDown="OnExplorerMouseDown"
                          PreviewMouseMove="OnExplorerMouseMove"
                          PreviewMouseRightButtonDown="OnExplorerRightButtonDown"
@@ -73,13 +74,16 @@
             <DockPanel Grid.Column="2">
                 <Border DockPanel.Dock="Top" Margin="0,0,0,4">
                     <StackPanel>
-                        <DockPanel Margin="0,0,0,4">
-                            <TextBlock DockPanel.Dock="Left" Text="Playlist" Style="{StaticResource PanelHeaderText}"
-                                       Margin="0,0,10,0" />
-                            <Button DockPanel.Dock="Right" Content="+" Click="OnAddTabClick"
-                                    MinWidth="26" Width="26" Margin="6,0,0,0" FontWeight="Bold"
-                                    ToolTip="Add a new playlist tab" />
-                            <ListBox x:Name="TabStrip" SelectionMode="Single" BorderThickness="0"
+                        <Grid Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Playlist" Style="{StaticResource PanelHeaderText}"
+                                       Margin="0,0,10,0" VerticalAlignment="Center" />
+                            <ListBox Grid.Column="1" x:Name="TabStrip" SelectionMode="Single" BorderThickness="0"
+                                     MinWidth="0" VerticalAlignment="Center"
                                      Background="Transparent" Padding="0"
                                      SelectionChanged="OnTabSelectionChanged"
                                      PreviewMouseDown="OnTabStripMouseDown"
@@ -138,7 +142,9 @@
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
                             </ListBox>
-                        </DockPanel>
+                            <Button Grid.Column="2" Style="{StaticResource TabAddButton}" Content="+"
+                                    Click="OnAddTabClick" ToolTip="Add a new playlist tab" />
+                        </Grid>
 
                         <StackPanel Orientation="Horizontal">
                             <Button Content="Save" Click="OnSaveClick" ToolTip="Ctrl+S - always asks where to save" />

@@ -82,6 +82,26 @@
             <Setter Property="Focusable" Value="False" />
         </Style>
 
+        <!-- The tab-strip "+": a plain 28x24 glyph box, because the implicit Button style
+             adds 10px of horizontal padding and a 72px MinWidth that clip a one-character label. -->
+        <Style x:Key="TabAddButton" TargetType="Button">
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="24" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="6,0,0,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Background" Value="#FFEDEFF2" />
+            <Setter Property="BorderBrush" Value="{StaticResource PanelBorder}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+
         <Style x:Key="TabRenameBox" TargetType="TextBox">
             <Setter Property="MinWidth" Value="92" />
             <Setter Property="Padding" Value="2,0" />
