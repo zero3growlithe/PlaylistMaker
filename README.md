@@ -20,6 +20,8 @@ Built with WPF on .NET 8. No external packages, no telemetry, no installer - one
 - The tab name is the default file name when saving; the save dialog can of course change it.
 - Closing a tab that still has unsaved work asks whether to save first, and the app asks per tab before it exits.
 - Each tab has its own undo history and its own dirty marker (a `*` after the name).
+- **Columns**: index, track name, path, album, artist, length and file size. Drag a header to reorder the columns, drag the header edge to resize, and **right-click any header** for a checklist that hides and shows each column (one column always stays visible, and *Show all columns* brings them back). Order, widths and visibility are remembered between launches in `%APPDATA%\PlaylistMaker\settings.json`.
+- **Sort...** orders the current playlist by track number (from tags), file name, track name, file size, track length, album name or artist name - each ascending or descending - or shuffles it. Sorting is a normal edit, so `Ctrl+Z` restores the previous order. Ties fall back to the full path so the result is stable, and entries with an unknown length always sort to the end.
 - Reorderable list: drag entries around, or move them with the keyboard. Deleting keeps the selection at the same index (clamped to the new end), so repeated `Delete` presses work down a list without re-clicking.
 - Accepts drops from the tree, from Windows Explorer, and from the playlist itself.
 - Dropping a playlist file pulls in its entries instead of the file.
@@ -58,7 +60,8 @@ The save dialog starts in the deepest folder that contains every track of the pl
 
 - Playlists: `.m3u`, `.m3u8` (read and write), `.pls` (read only).
 - Music: mp3, mp2, flac, m4a, m4b, aac, ogg, oga, opus, wav, wma, aiff, aif, ape, wv, alac, dsf, dff, mpc, spx, tta, mid, midi, mod, xm, it, s3m, vgm, vgz, nsf, spc, psf, gbs.
-- Titles and track numbers for ordering are read from ID3v2 tags (MP3) and Vorbis comments (FLAC). Other formats fall back to the file name, e.g. `03 - Intro.flac` becomes track 3, "Intro".
+- Title, track number, album and artist are read from ID3v2 tags (MP3) and Vorbis comments (FLAC/OGG). Other formats fall back to the file name, e.g. `03 - Intro.flac` becomes track 3, "Intro".
+- Track lengths are read straight out of the container headers - no decoding and no external library: MP3 (Xing/Info frame count, otherwise a constant-bitrate estimate), FLAC (STREAMINFO), WAV (RIFF fmt/data), OGG/Opus (last granule position) and M4A/MP4 (mvhd box). Formats outside that list show a dash instead of a length. Metadata, lengths and sizes are read lazily per row, so a 50 000 track playlist only pays for what is on screen.
 
 ## Build
 

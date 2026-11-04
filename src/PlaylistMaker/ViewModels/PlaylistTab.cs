@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Linq;
 using System.Windows;
@@ -21,6 +22,7 @@ namespace PlaylistMaker.ViewModels
         {
             this.name = name;
             editingName = name;
+            Entries.CollectionChanged += OnEntriesChanged;
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;
@@ -144,6 +146,15 @@ namespace PlaylistMaker.ViewModels
             foreach (string path in paths)
             {
                 Entries.Add(new PlaylistEntry(path));
+            }
+        }
+
+        /// <summary>The entry added/removed/replaced, the Index column and the reorder arrows are recomputed from this.</summary>
+        private void OnEntriesChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        {
+            for (int index = 0; index < Entries.Count; index++)
+            {
+                Entries[index].Index = index + 1;
             }
         }
 

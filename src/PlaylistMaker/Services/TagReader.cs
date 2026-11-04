@@ -122,6 +122,8 @@ namespace PlaylistMaker.Services
 
             string? title = null;
             string? trackText = null;
+            string? album = null;
+            string? artist = null;
             int position = 0;
             while (position + 10 <= totalRead)
             {
@@ -162,15 +164,23 @@ namespace PlaylistMaker.Services
                 {
                     trackText = DecodeTextFrame(body, payloadOffset, payloadLength);
                 }
+                else if (frameId == "TALB" && album == null)
+                {
+                    album = DecodeTextFrame(body, payloadOffset, payloadLength);
+                }
+                else if (frameId == "TPE1" && artist == null)
+                {
+                    artist = DecodeTextFrame(body, payloadOffset, payloadLength);
+                }
 
                 position += 10 + payloadLength;
             }
 
-            if (title == null && trackText == null)
+            if (title == null && trackText == null && album == null && artist == null)
             {
                 return null;
             }
-            return new TrackMetadata(title, ParseTrackNumber(trackText), true);
+            return new TrackMetadata(title, ParseTrackNumber(trackText), true, album, artist);
         }
 
         private static string? DecodeTextFrame(byte[] data, int offset, int length)
@@ -301,6 +311,8 @@ namespace PlaylistMaker.Services
 
             string? title = null;
             string? trackText = null;
+            string? album = null;
+            string? artist = null;
             for (int index = 0; index < commentCount; index++)
             {
                 if (cursor + 4 > length)
@@ -336,13 +348,21 @@ namespace PlaylistMaker.Services
                 {
                     trackText = value;
                 }
+                else if (key == "ALBUM" && album == null)
+                {
+                    album = value;
+                }
+                else if (key == "ARTIST" && artist == null)
+                {
+                    artist = value;
+                }
             }
 
-            if (title == null && trackText == null)
+            if (title == null && trackText == null && album == null && artist == null)
             {
                 return null;
             }
-            return new TrackMetadata(title, ParseTrackNumber(trackText), true);
+            return new TrackMetadata(title, ParseTrackNumber(trackText), true, album, artist);
         }
 
         private static TrackMetadata FromFileName(string filePath)

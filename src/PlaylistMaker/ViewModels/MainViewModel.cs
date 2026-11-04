@@ -268,6 +268,24 @@ namespace PlaylistMaker.ViewModels
             return removed;
         }
 
+        /// <summary>Replaces the active playlist with an already ordered list (undo snapshot is taken first).</summary>
+        public void SortActiveTab(IReadOnlyList<PlaylistEntry> ordered)
+        {
+            if (ordered.Count == 0)
+            {
+                return;
+            }
+
+            RecordUndo();
+            ObservableCollection<PlaylistEntry> list = activeTab.Entries;
+            list.Clear();
+            foreach (PlaylistEntry entry in ordered)
+            {
+                list.Add(entry);
+            }
+            activeTab.MarkDirty();
+        }
+
         /// <summary>Moves the selection one slot up (-1) or down (1), keeping blocks of selected items together.</summary>
         public void MoveEntries(IReadOnlyList<PlaylistEntry> entries, int direction)
         {

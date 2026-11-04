@@ -6,6 +6,16 @@
         PreviewKeyDown="OnWindowPreviewKeyDown"
         PreviewMouseDown="OnWindowPreviewMouseDown"
         Closing="OnWindowClosing">
+    <Window.Resources>
+        <!-- Right-clicking any column header drops down the column chooser (see OnColumnHeaderContextMenuOpening). -->
+        <Style TargetType="GridViewColumnHeader">
+            <Setter Property="Padding" Value="6,3" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <EventSetter Event="ContextMenuOpening" Handler="OnColumnHeaderContextMenuOpening" />
+        </Style>
+    </Window.Resources>
+
     <Grid Margin="10">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -154,6 +164,8 @@
                             <Button Content="Undo" Click="OnUndoClick" ToolTip="Ctrl+Z" />
                             <Button Content="Redo" Click="OnRedoClick" ToolTip="Ctrl+Y" />
                             <Button Content="Remove" Click="OnRemoveClick" ToolTip="Delete" />
+                            <Button Content="Sort..." Click="OnSortClick"
+                                    ToolTip="Sort this playlist by track number, names, size, length - or shuffle it" />
                         </StackPanel>
                     </StackPanel>
                 </Border>
@@ -162,33 +174,82 @@
                     <TextBlock x:Name="PlaylistSummary" Style="{StaticResource HintText}" TextWrapping="Wrap" />
                 </Border>
 
-                <ListBox x:Name="PlaylistList" SelectionMode="Extended" AllowDrop="True"
-                         DragOver="OnPlaylistDragOver" Drop="OnPlaylistDrop"
-                         PreviewMouseLeftButtonDown="OnPlaylistMouseDown"
-                         PreviewMouseMove="OnPlaylistMouseMove"
-                         PreviewKeyDown="OnPlaylistKeyDown"
-                         VirtualizingStackPanel.IsVirtualizing="True"
-                         ScrollViewer.CanContentScroll="True">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate>
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <Button Grid.Column="0" Style="{StaticResource IconButton}" Content="!"
-                                        Tag="{Binding}" Click="OnFixMissingClick"
-                                        ToolTip="File not found. Click here to fix."
-                                        Visibility="{Binding IsMissing, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                <TextBlock Grid.Column="1" Text="{Binding DisplayName}" Margin="4,0,8,0"
-                                           TextTrimming="CharacterEllipsis" />
-                                <TextBlock Grid.Column="2" Text="{Binding DisplayFolder}" Style="{StaticResource HintText}"
-                                           TextTrimming="CharacterEllipsis" ToolTip="{Binding FullPath}" />
-                            </Grid>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
+                <ListView x:Name="PlaylistList" SelectionMode="Extended" AllowDrop="True"
+                          DragOver="OnPlaylistDragOver" Drop="OnPlaylistDrop"
+                          PreviewMouseLeftButtonDown="OnPlaylistMouseDown"
+                          PreviewMouseMove="OnPlaylistMouseMove"
+                          PreviewKeyDown="OnPlaylistKeyDown"
+                          VirtualizingStackPanel.IsVirtualizing="True"
+                          ScrollViewer.CanContentScroll="True"
+                          ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                    <ListView.View>
+                        <GridView x:Name="PlaylistGridView" AllowsColumnReorder="True">
+                            <GridViewColumn x:Name="ColumnIndex" Header="#" Width="46">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Index}" HorizontalAlignment="Right" Margin="0,0,6,0" />
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+
+                            <GridViewColumn x:Name="ColumnTrackName" Header="Track name" Width="260">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Button Style="{StaticResource IconButton}" Content="!" Tag="{Binding}"
+                                                    Click="OnFixMissingClick"
+                                                    ToolTip="File not found. Click here to fix."
+                                                    Visibility="{Binding IsMissing, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                            <TextBlock Text="{Binding TrackName}" Margin="4,0,0,0"
+                                                       TextTrimming="CharacterEllipsis" ToolTip="{Binding FullPath}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+
+                            <GridViewColumn x:Name="ColumnPath" Header="Path" Width="300">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding DisplayFolder}" TextTrimming="CharacterEllipsis"
+                                                   ToolTip="{Binding FullPath}" />
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+
+                            <GridViewColumn x:Name="ColumnAlbum" Header="Album" Width="150">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Album}" TextTrimming="CharacterEllipsis" />
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+
+                            <GridViewColumn x:Name="ColumnArtist" Header="Artist" Width="140">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Artist}" TextTrimming="CharacterEllipsis" />
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+
+                            <GridViewColumn x:Name="ColumnTrackLength" Header="Length" Width="66">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding DurationText}" HorizontalAlignment="Right" Margin="0,0,6,0" />
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+
+                            <GridViewColumn x:Name="ColumnFileSize" Header="Size" Width="78">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding FileSizeText}" HorizontalAlignment="Right" Margin="0,0,6,0" />
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                        </GridView>
+                    </ListView.View>
+                </ListView>
             </DockPanel>
         </Grid>
 

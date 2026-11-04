@@ -1,6 +1,7 @@
 using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
@@ -22,6 +23,8 @@ namespace PlaylistMaker
         private const double DragThreshold = 6.0;
 
         private readonly MainViewModel viewModel = new MainViewModel();
+        private readonly UserSettings userSettings;
+        private readonly PlaylistColumnSet columnSet;
         private Point explorerDragStart;
         private Point playlistDragStart;
         private bool isExplorerDragPending;
@@ -31,6 +34,13 @@ namespace PlaylistMaker
         public MainWindow()
         {
             InitializeComponent();
+
+            userSettings = UserSettings.Load();
+            columnSet = new PlaylistColumnSet(PlaylistGridView, BuildColumnDefinitions());
+            columnSet.ApplySavedLayout(userSettings);
+            // dragging a header reorders GridView.Columns, so that is where a new order becomes persistent
+            PlaylistGridView.Columns.CollectionChanged += OnColumnsCollectionChanged;
+
             ExplorerList.ItemsSource = viewModel.VisibleNodes;
             TabStrip.ItemsSource = viewModel.Tabs;
             viewModel.Initialize();
@@ -268,6 +278,8 @@ namespace PlaylistMaker
 
         private void OnWindowClosing(object sender, CancelEventArgs e)
         {
+            SaveColumnLayout();
+
             foreach (PlaylistTab tab in viewModel.Tabs.ToList())
             {
                 if (!tab.NeedsSavePrompt)
@@ -821,6 +833,154 @@ namespace PlaylistMaker
                 }
                 e.Handled = true;
             }
+        }
+
+        // ── Columns ───────────────────────────────────────────────────────
+        private List<PlaylistColumnDefinition> BuildColumnDefinitions()
+        {
+            return new List<PlaylistColumnDefinition>
+            {
+                new PlaylistColumnDefinition("index", "Index", ColumnIndex, 46),
+                new PlaylistColumnDefinition("trackname", "Track name", ColumnTrackName, 260),
+                new PlaylistColumnDefinition("path", "Path", ColumnPath, 300),
+                new PlaylistColumnDefinition("album", "Album", ColumnAlbum, 150),
+                new PlaylistColumnDefinition("artist", "Artist", ColumnArtist, 140),
+                new PlaylistColumnDefinition("length", "Length", ColumnTrackLength, 66),
+                new PlaylistColumnDefinition("size", "Size", ColumnFileSize, 78)
+            };
+        }
+
+        /// <summary>Right-click on any column header: a checkbox per column plus "show all".</summary>
+        private void OnColumnHeaderContextMenuOpening(object sender, ContextMenuEventArgs e)
+        {
+            ContextMenu menu = new ContextMenu();
+
+            foreach (PlaylistColumnDefinition definition in columnSet.Columns)
+            {
+                PlaylistColumnDefinition column = definition;
+                MenuItem item = new MenuItem
+                {
+                    Header = column.Header,
+                    IsCheckable = true,
+                    IsChecked = column.IsVisible,
+                    StaysOpenOnClick = true
+                };
+                item.Click += (itemSender, itemArgs) => ToggleColumn(column);
+                menu.Items.Add(item);
+            }
+
+            menu.Items.Add(new Separator());
+            MenuItem showAll = new MenuItem { Header = "Show all columns" };
+            showAll.Click += OnShowAllColumnsClick;
+            menu.Items.Add(showAll);
+
+            GridViewColumnHeader? header = sender as GridViewColumnHeader;
+            if (header != null)
+            {
+                header.ContextMenu = menu;
+            }
+        }
+
+        private void OnColumnsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        {
+            if (e.Action == NotifyCollectionChangedAction.Move && columnSet.IsApplyingLayout)
+            {
+                return;
+            }
+            SaveColumnLayout();
+        }
+
+        private void ToggleColumn(PlaylistColumnDefinition definition)
+        {
+            if (!columnSet.ToggleVisibility(definition))
+            {
+                UpdateSummary("At least one column has to stay visible - use \"Show all columns\" to bring a hidden one back.");
+                return;
+            }
+
+            SaveColumnLayout();
+            UpdateSummary((definition.IsVisible ? "Showing " : "Hiding ") + definition.Header + ".");
+        }
+
+        private void OnShowAllColumnsClick(object sender, RoutedEventArgs e)
+        {
+            columnSet.ShowAllColumns();
+            SaveColumnLayout();
+            UpdateSummary("All columns are visible again.");
+        }
+
+        private void SaveColumnLayout()
+        {
+            columnSet.SaveInto(userSettings);
+            userSettings.Save();
+        }
+
+        // ── Sorting ───────────────────────────────────────────────────────
+        private void OnSortClick(object sender, RoutedEventArgs e)
+        {
+            if (viewModel.ActiveTab.Entries.Count == 0)
+            {
+                UpdateSummary("This playlist is empty - nothing to sort.");
+                return;
+            }
+
+            if (!SortPlaylistWindow.Ask(this, out PlaylistSortField field, out bool descending))
+            {
+                return;
+            }
+
+            List<PlaylistEntry> previouslySelected = GetSelectedEntries();
+            List<PlaylistEntry> ordered = PlaylistSorter.Sort(viewModel.ActiveTab.Entries.ToList(), field, descending);
+            viewModel.SortActiveTab(ordered);
+            BindActiveTab();
+
+            foreach (PlaylistEntry entry in previouslySelected)
+            {
+                if (viewModel.ActiveTab.Entries.Contains(entry))
+                {
+                    PlaylistList.SelectedItems.Add(entry);
+                }
+            }
+
+            UpdateSummary("Sorted by " + DescribeSort(field, descending) + ".");
+        }
+
+        private static string DescribeSort(PlaylistSortField field, bool descending)
+        {
+            if (field == PlaylistSortField.Shuffle)
+            {
+                return "shuffle";
+            }
+
+            string name;
+            switch (field)
+            {
+                case PlaylistSortField.TrackNumberFromTags:
+                    name = "track number";
+                    break;
+                case PlaylistSortField.FileName:
+                    name = "file name";
+                    break;
+                case PlaylistSortField.TrackName:
+                    name = "track name";
+                    break;
+                case PlaylistSortField.FileSize:
+                    name = "file size";
+                    break;
+                case PlaylistSortField.TrackLength:
+                    name = "track length";
+                    break;
+                case PlaylistSortField.AlbumName:
+                    name = "album name";
+                    break;
+                case PlaylistSortField.ArtistName:
+                    name = "artist name";
+                    break;
+                default:
+                    name = "path";
+                    break;
+            }
+            return name + (descending ? " (descending)" : " (ascending)");
         }
 
         // ── Missing file repair ───────────────────────────────────────────
