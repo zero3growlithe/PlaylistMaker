@@ -1,0 +1,27 @@
+<Window x:Class="PlaylistMaker.Views.ScopeSelectionWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Add files" Height="230" Width="470"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        Background="{StaticResource WindowBackground}">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" x:Name="MessageText" TextWrapping="Wrap" Margin="0,0,0,12" />
+
+        <RadioButton Grid.Row="1" x:Name="FolderOnlyRadio" Content="Only the files directly in this folder"
+                     IsChecked="True" Margin="0,0,0,6" />
+        <RadioButton Grid.Row="2" x:Name="RecursiveRadio" Content="This folder and all subfolders (recursive)" />
+
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="OK" IsDefault="True" Click="OnOkClick" />
+            <Button Content="Cancel" IsCancel="True" />
+        </StackPanel>
+    </Grid>
+</Window>

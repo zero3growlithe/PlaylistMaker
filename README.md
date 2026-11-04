@@ -1,0 +1,63 @@
+# Playlist Maker
+
+Windows desktop app that does one thing: build playlists. Browse your drives in a tree, drag music into a list, repair entries that point nowhere any more, save a portable M3U/M3U8 that still works after you move the files.
+
+Built with WPF on .NET 8. No external packages, no telemetry, no installer - one executable.
+
+## Features
+
+**Explorer (left)**
+- Lists every ready drive; folders expand lazily, one level at a time.
+- Filtered by default to music and playlist files. Tick *Show all files* to see everything.
+- Multi-select with Ctrl/Shift, drag the selection into the playlist, or use the right-click menu.
+- **Alt+click a folder arrow** collapses that folder *and* every folder below it. Plain click collapses one level (recursive expand is deliberately not offered).
+
+**Playlist (right)**
+- Reorderable list: drag entries around, or move them with the keyboard.
+- Accepts drops from the tree, from Windows Explorer, and from the playlist itself.
+- Dropping a playlist file pulls in its entries instead of the file.
+- Broken entries stay in the list, marked with a yellow **!** and the tooltip *"File not found. Click here to fix."* Clicking it opens a picker where you choose the file itself or a folder to search by name; after one repair you are offered to fix the remaining broken entries with the same folder, optionally recursively.
+
+**Context menu on the tree**
+- Music file: *Add to playlist*.
+- Folder: *Add to playlist* and *Save as playlist...* - both ask whether to take only the files directly inside or all subfolders.
+- Multiple selected music files: *Add to playlist* and *Save as playlist...*.
+- Playlist file: *Add to playlist*.
+
+*Save as playlist* additionally asks for the order: ID3 tag track number, file name A-Z, file name Z-A, track name A-Z, track name Z-A, or random.
+
+## Keyboard shortcuts
+
+| Keys | Action |
+| --- | --- |
+| `Ctrl+S` | Save the playlist (always asks where) |
+| `Ctrl+Up` / `Ctrl+Down` | Move selected entries up / down (works with multi-selection) |
+| `Delete` | Remove selected entries (no confirmation) |
+| `Ctrl+Z` / `Ctrl+Y` | Undo / redo |
+| `E` | Show the selected entry in Windows Explorer |
+| `Alt+click` on a folder arrow | Collapse the folder and everything under it |
+
+The save dialog starts in the deepest folder that contains every track of the playlist, and writes **relative paths** (forward slashes) whenever the playlist sits on the same drive - so the folder and the playlist can be moved or copied together and keep working.
+
+## What it reads and writes
+
+- Playlists: `.m3u`, `.m3u8` (read and write), `.pls` (read only).
+- Music: mp3, mp2, flac, m4a, m4b, aac, ogg, oga, opus, wav, wma, aiff, aif, ape, wv, alac, dsf, dff, mpc, spx, tta, mid, midi, mod, xm, it, s3m, vgm, vgz, nsf, spc, psf, gbs.
+- Titles and track numbers for ordering are read from ID3v2 tags (MP3) and Vorbis comments (FLAC). Other formats fall back to the file name, e.g. `03 - Intro.flac` becomes track 3, "Intro".
+
+## Build
+
+Requires the .NET 8 SDK on Windows:
+
+```
+dotnet build src/PlaylistMaker/PlaylistMaker.csproj -c Release
+dotnet run --project src/PlaylistMaker/PlaylistMaker.csproj
+```
+
+CI (GitHub Actions, `windows-latest`) builds and publishes a framework-dependent `win-x64` zip as the `PlaylistMaker-win-x64` artifact - that needs the .NET 8 Desktop Runtime, not the full SDK.
+
+Regenerate the icon with `python tools/generate-icon.py` (needs Pillow).
+
+## Licence
+
+MIT.

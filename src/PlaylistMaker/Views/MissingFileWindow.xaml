@@ -1,0 +1,30 @@
+<Window x:Class="PlaylistMaker.Views.MissingFileWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Fix missing file" Height="240" Width="600"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        Background="{StaticResource WindowBackground}">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="This entry does not exist any more:" Margin="0,0,0,8" FontWeight="SemiBold" />
+
+        <TextBox Grid.Row="1" x:Name="MissingPathBox" IsReadOnly="True" TextWrapping="Wrap"
+                 Margin="0,0,0,12" Padding="4" BorderBrush="{StaticResource PanelBorder}" />
+
+        <TextBlock Grid.Row="2" Style="{StaticResource HintText}" TextWrapping="Wrap" Margin="0,0,0,12"
+                   Text="Pick the file itself, or pick a folder and Playlist Maker will look the file up there by name." />
+
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Select folder..." Click="OnSelectFolderClick" />
+            <Button Content="Select file..." Click="OnSelectFileClick" />
+            <Button Content="Cancel" IsCancel="True" />
+        </StackPanel>
+    </Grid>
+</Window>

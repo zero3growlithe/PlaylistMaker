@@ -1,0 +1,39 @@
+<Window x:Class="PlaylistMaker.Views.OrderSelectionWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Save as playlist - order" Height="330" Width="430"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        Background="{StaticResource WindowBackground}">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="In which order should the tracks be written?" Margin="0,0,0,12" FontWeight="SemiBold" />
+
+        <RadioButton Grid.Row="1" x:Name="TrackNumberRadio"
+                     Content="ID3 tag track number" IsChecked="True" Margin="0,0,0,6" />
+        <RadioButton Grid.Row="2" x:Name="FileNameAscendingRadio"
+                     Content="File name, A to Z" Margin="0,0,0,6" />
+        <RadioButton Grid.Row="3" x:Name="FileNameDescendingRadio"
+                     Content="File name, Z to A" Margin="0,0,0,6" />
+        <RadioButton Grid.Row="4" x:Name="TrackNameAscendingRadio"
+                     Content="Track name, A to Z" Margin="0,0,0,6" />
+        <RadioButton Grid.Row="5" x:Name="TrackNameDescendingRadio"
+                     Content="Track name, Z to A" Margin="0,0,0,6" />
+        <RadioButton Grid.Row="6" x:Name="RandomRadio"
+                     Content="Random (shuffle)" VerticalAlignment="Top" />
+
+        <StackPanel Grid.Row="7" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="OK" IsDefault="True" Click="OnOkClick" />
+            <Button Content="Cancel" IsCancel="True" />
+        </StackPanel>
+    </Grid>
+</Window>
