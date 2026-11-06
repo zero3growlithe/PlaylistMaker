@@ -9,6 +9,55 @@ namespace PlaylistMaker.Services
     /// <summary>Small path helpers: mutual parent directory (for the save dialog) and "show in Explorer".</summary>
     public static class PathUtilities
     {
+        /// <summary>
+        /// Drops trailing separators so two spellings of the same path compare equal. A drive root
+        /// keeps its separator: "C:" alone means "current directory on C:", which is not "C:\".
+        /// </summary>
+        public static string TrimTrailingSeparator(string path)
+        {
+            if (string.IsNullOrEmpty(path))
+            {
+                return string.Empty;
+            }
+
+            string trimmed = path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            if (trimmed.Length == 0 || trimmed.EndsWith(":", StringComparison.Ordinal))
+            {
+                return path;
+            }
+            return trimmed;
+        }
+
+        public static bool PathsEqual(string? left, string? right)
+        {
+            return string.Equals(TrimTrailingSeparator(left ?? string.Empty),
+                                 TrimTrailingSeparator(right ?? string.Empty),
+                                 StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>True when <paramref name="path"/> sits inside <paramref name="folder"/>, not when it is the folder.</summary>
+        public static bool IsUnder(string? path, string? folder)
+        {
+            string trimmedFolder = TrimTrailingSeparator(folder ?? string.Empty);
+            if (trimmedFolder.Length == 0)
+            {
+                return false;
+            }
+
+            string prefix = trimmedFolder;
+            if (prefix.EndsWith(":", StringComparison.Ordinal))
+            {
+                prefix += Path.DirectorySeparatorChar;
+            }
+
+            string trimmedPath = TrimTrailingSeparator(path ?? string.Empty);
+            if (trimmedPath.Length <= prefix.Length)
+            {
+                return false;
+            }
+            return trimmedPath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+        }
+
         /// <summary>Deepest directory that contains every given file, or null when they span unrelated roots.</summary>
         public static string? GetMutualParentDirectory(IEnumerable<string> filePaths)
         {

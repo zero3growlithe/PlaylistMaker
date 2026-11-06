@@ -14,6 +14,10 @@ Built with WPF on .NET 8. No external packages, no telemetry, no installer - one
 - Keyboard: **Right** expands the selected folder, **Left** collapses it, **Alt+Left** collapses it recursively, and **Left on a folder that is already collapsed selects the folder that contains it**. Up/Down/Home/End move the selection as usual.
 - Expanding and collapsing never disturbs the selection - the rows you had selected stay selected, including with Ctrl/Shift multi-select.
 - **Enter** adds the selection to the open playlist: music files and playlist files go straight in (a playlist file expands into its entries), and folders ask first whether to take only the files directly inside or all subfolders.
+- **Drag rows onto a folder row to move the real files and folders** - hold **Ctrl** to copy instead. The target folder lights up while you hover it and the status line says what a drop will do. Dropping onto a file row means "into the folder that holds it"; dropping on empty space does nothing. A folder cannot be dropped into itself or into its own subfolder.
+- **Drag rows out to Windows Explorer** to copy them there (Shift-drag moves them), and **drag files or folders from Windows Explorer into the tree** to move or copy them into the folder you drop them on.
+- Name clashes are handled on the spot: *replace what is there*, *keep both* (the incoming item gets a `(2)` suffix) or *cancel* before anything is touched.
+- After a move the tree follows the change: the destination opens, a moved folder keeps its expanded branch, the moved rows are selected again (so the next keystroke acts on them), and every playlist entry that pointed at a moved file or into a moved folder is re-pointed - `Ctrl+Z` puts the old paths back.
 
 **Playlist (right)**
 - **Tabs**, one playlist per tab. The `+` button adds a tab, double-clicking a tab label renames it (Enter commits, Escape cancels, and clicking anywhere outside the name box also commits), the small **x** closes it, and middle-clicking the tab does the same. Dropping files onto a tab header adds them to *that* tab's playlist - same rules as dropping onto the list.

@@ -8,6 +8,7 @@ namespace PlaylistMaker.Models
     public sealed class FileSystemNode : INotifyPropertyChanged
     {
         private bool isExpanded;
+        private bool isDropTarget;
 
         public FileSystemNode(string fullPath, string name, bool isFolder, int level, bool isMusic, bool isPlaylist)
         {
@@ -57,6 +58,21 @@ namespace PlaylistMaker.Models
         public string ChevronGlyph => IsExpanded ? "\u25BC" : "\u25B6";
 
         public Visibility ExpandButtonVisibility => IsFolder ? Visibility.Visible : Visibility.Collapsed;
+
+        /// <summary>True while a drag hovers over this row, so the template can highlight the drop target.</summary>
+        public bool IsDropTarget
+        {
+            get => isDropTarget;
+            set
+            {
+                if (isDropTarget == value)
+                {
+                    return;
+                }
+                isDropTarget = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsDropTarget)));
+            }
+        }
 
         public bool ChildrenLoaded { get; set; }
 

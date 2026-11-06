@@ -220,6 +220,228 @@ namespace PlaylistMaker.ViewModels
             }
         }
 
+        // ── Tree refresh after real file operations ───────────────────────
+        /// <summary>
+        /// Re-reads a folder that is already loaded in the tree. Children that survived keep their
+        /// identity (and their expanded branch), so the selection on those rows is not thrown away.
+        /// </summary>
+        public void RefreshFolder(FileSystemNode folder)
+        {
+            if (folder == null || !folder.IsFolder || !folder.ChildrenLoaded)
+            {
+                return;
+            }
+
+            List<FileSystemNode> previous = new List<FileSystemNode>(folder.Children);
+            List<FileSystemNode> loaded = treeService.LoadChildren(folder);
+            foreach (FileSystemNode child in loaded)
+            {
+                foreach (FileSystemNode candidate in previous)
+                {
+                    if (PathUtilities.PathsEqual(candidate.FullPath, child.FullPath))
+                    {
+                        CarryOverBranch(candidate, child);
+                        break;
+                    }
+                }
+            }
+
+            folder.Children.Clear();
+            foreach (FileSystemNode child in loaded)
+            {
+                folder.Children.Add(child);
+            }
+
+            RebuildVisibleNodes();
+        }
+
+        /// <summary>Refreshes every one of the given folders that the tree currently has loaded.</summary>
+        public void RefreshFolders(IEnumerable<string> folderPaths)
+        {
+            List<string> wanted = new List<string>();
+            foreach (string folderPath in folderPaths)
+            {
+                if (string.IsNullOrWhiteSpace(folderPath))
+                {
+                    continue;
+                }
+                bool known = false;
+                foreach (string existing in wanted)
+                {
+                    if (PathUtilities.PathsEqual(existing, folderPath))
+                    {
+                        known = true;
+                        break;
+                    }
+                }
+                if (!known)
+                {
+                    wanted.Add(folderPath);
+                }
+            }
+
+            foreach (string folderPath in wanted)
+            {
+                FileSystemNode? folder = FindLoadedNode(folderPath);
+                if (folder != null)
+                {
+                    RefreshFolder(folder);
+                }
+            }
+        }
+
+        /// <summary>Expands a folder if it is not already open, loading its children on the way.</summary>
+        public void ExpandFolder(FileSystemNode? node)
+        {
+            if (node == null || !node.IsFolder || node.IsExpanded)
+            {
+                return;
+            }
+            ToggleExpand(node, false);
+        }
+
+        /// <summary>Finds a node that the tree has already created, whether it is visible or only loaded.</summary>
+        public FileSystemNode? FindLoadedNode(string? fullPath)
+        {
+            if (string.IsNullOrWhiteSpace(fullPath))
+            {
+                return null;
+            }
+
+            foreach (FileSystemNode root in Roots)
+            {
+                FileSystemNode? match = FindLoadedNode(root, fullPath!);
+                if (match != null)
+                {
+                    return match;
+                }
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Puts a rebuilt copy of a just-moved folder where it landed, so a branch the user had
+        /// expanded is still expanded - just at its new path - instead of reappearing collapsed.
+        /// </summary>
+        public void InstallMovedBranch(FileSystemNode? targetFolder, FileSystemNode? movedNode, string newFullPath)
+        {
+            if (targetFolder == null || movedNode == null || string.IsNullOrWhiteSpace(newFullPath))
+            {
+                return;
+            }
+
+            FileSystemNode rebased = RebaseNode(movedNode, PathUtilities.TrimTrailingSeparator(newFullPath), targetFolder.Level + 1);
+
+            for (int index = targetFolder.Children.Count - 1; index >= 0; index--)
+            {
+                if (PathUtilities.PathsEqual(targetFolder.Children[index].FullPath, rebased.FullPath))
+                {
+                    targetFolder.Children.RemoveAt(index);
+                }
+            }
+
+            int insertIndex = 0;
+            while (insertIndex < targetFolder.Children.Count
+                && FileSystemTreeService.CompareNodes(targetFolder.Children[insertIndex], rebased) <= 0)
+            {
+                insertIndex++;
+            }
+            targetFolder.Children.Insert(insertIndex, rebased);
+
+            RebuildVisibleNodes();
+        }
+
+        /// <summary>
+        /// Re-points every entry of every tab that referenced a moved file or a moved folder and
+        /// records an undo snapshot on each affected tab, so Ctrl+Z restores the old paths.
+        /// </summary>
+        public int RebasePlaylistEntries(IEnumerable<FileTransferOutcome> outcomes)
+        {
+            List<FileTransferOutcome> moves = new List<FileTransferOutcome>(outcomes);
+            if (moves.Count == 0)
+            {
+                return 0;
+            }
+
+            int updated = 0;
+            foreach (PlaylistTab tab in Tabs)
+            {
+                List<PlaylistEntry> affectedEntries = new List<PlaylistEntry>();
+                List<string> affectedPaths = new List<string>();
+                foreach (PlaylistEntry entry in tab.Entries)
+                {
+                    string mappedPath;
+                    if (FileTransferService.TryMapPath(moves, entry.FullPath, out mappedPath))
+                    {
+                        affectedEntries.Add(entry);
+                        affectedPaths.Add(mappedPath);
+                    }
+                }
+
+                if (affectedEntries.Count == 0)
+                {
+                    continue;
+                }
+
+                tab.UndoStack.Record(tab.SnapshotPaths());
+                for (int index = 0; index < affectedEntries.Count; index++)
+                {
+                    affectedEntries[index].PointTo(affectedPaths[index]);
+                }
+                tab.MarkDirty();
+                tab.RaiseHeaderChanged();
+                updated += affectedEntries.Count;
+            }
+            return updated;
+        }
+
+        private static FileSystemNode? FindLoadedNode(FileSystemNode node, string fullPath)
+        {
+            if (PathUtilities.PathsEqual(node.FullPath, fullPath))
+            {
+                return node;
+            }
+
+            foreach (FileSystemNode child in node.Children)
+            {
+                FileSystemNode? match = FindLoadedNode(child, fullPath);
+                if (match != null)
+                {
+                    return match;
+                }
+            }
+            return null;
+        }
+
+        private static void CarryOverBranch(FileSystemNode source, FileSystemNode target)
+        {
+            foreach (FileSystemNode child in source.Children)
+            {
+                target.Children.Add(child);
+            }
+            target.ChildrenLoaded = source.ChildrenLoaded;
+            target.IsExpanded = source.IsExpanded;
+        }
+
+        /// <summary>Copies a node and everything loaded under it onto a new path and depth.</summary>
+        private static FileSystemNode RebaseNode(FileSystemNode source, string fullPath, int level)
+        {
+            string name = Path.GetFileName(fullPath);
+            if (string.IsNullOrEmpty(name))
+            {
+                name = fullPath;
+            }
+
+            FileSystemNode copy = new FileSystemNode(fullPath, name, source.IsFolder, level, source.IsMusic, source.IsPlaylist);
+            foreach (FileSystemNode child in source.Children)
+            {
+                copy.Children.Add(RebaseNode(child, Path.Combine(fullPath, child.Name), level + 1));
+            }
+            copy.ChildrenLoaded = source.ChildrenLoaded;
+            copy.IsExpanded = source.IsExpanded;
+            return copy;
+        }
+
         // ── Undo / redo (per tab) ─────────────────────────────────────────
         public void RecordUndo()
         {

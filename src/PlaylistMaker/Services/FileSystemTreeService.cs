@@ -101,7 +101,8 @@ namespace PlaylistMaker.Services
             return children;
         }
 
-        private static int CompareNodes(FileSystemNode left, FileSystemNode right)
+        /// <summary>Folders before files, then natural name order - also used when re-inserting a moved folder.</summary>
+        public static int CompareNodes(FileSystemNode left, FileSystemNode right)
         {
             if (left.IsFolder != right.IsFolder)
             {

@@ -33,7 +33,7 @@
             <Button DockPanel.Dock="Left" Content="Refresh" Click="OnRefreshClick"
                     ToolTip="Reload the drives and re-check which playlist entries still exist." />
             <TextBlock Style="{StaticResource HintText}" Margin="12,0,0,0" TextTrimming="CharacterEllipsis"
-                       Text="Drag music onto a playlist tab. Alt+click a folder arrow to collapse the whole branch." />
+                       Text="Drag rows onto a folder to move them (Ctrl copies), or drag them out to Explorer. Alt+click a folder arrow to collapse the branch." />
         </DockPanel>
 
         <Grid Grid.Row="1">
@@ -55,24 +55,39 @@
                          PreviewMouseMove="OnExplorerMouseMove"
                          PreviewMouseRightButtonDown="OnExplorerRightButtonDown"
                          ContextMenuOpening="OnExplorerContextMenuOpening"
+                         AllowDrop="True"
+                         DragOver="OnExplorerDragOver" DragLeave="OnExplorerDragLeave" Drop="OnExplorerDrop"
                          VirtualizingStackPanel.IsVirtualizing="True"
                          ScrollViewer.CanContentScroll="True">
                     <ListBox.ItemTemplate>
                         <DataTemplate>
-                            <Grid Margin="{Binding IndentMargin}">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <Button Grid.Column="0" Style="{StaticResource ChevronButton}"
-                                        Content="{Binding ChevronGlyph}"
-                                        Tag="{Binding}"
-                                        Visibility="{Binding ExpandButtonVisibility}"
-                                        Click="OnChevronClick"
-                                        ToolTip="Click to expand. Alt+click to collapse this folder and everything under it." />
-                                <TextBlock Grid.Column="1" Text="{Binding Name}" Margin="4,0,0,0"
-                                           TextTrimming="CharacterEllipsis" ToolTip="{Binding FullPath}" />
-                            </Grid>
+                            <!-- The border is what a drag highlights while it hovers a folder (see IsDropTarget). -->
+                            <Border x:Name="RowBorder" Background="Transparent" BorderThickness="1"
+                                    BorderBrush="Transparent" CornerRadius="3" Padding="0,1"
+                                    Margin="{Binding IndentMargin}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Button Grid.Column="0" Style="{StaticResource ChevronButton}"
+                                            Content="{Binding ChevronGlyph}"
+                                            Tag="{Binding}"
+                                            Visibility="{Binding ExpandButtonVisibility}"
+                                            Click="OnChevronClick"
+                                            ToolTip="Click to expand. Alt+click to collapse this folder and everything under it." />
+                                    <TextBlock Grid.Column="1" Text="{Binding Name}" Margin="4,0,0,0"
+                                               TextTrimming="CharacterEllipsis" ToolTip="{Binding FullPath}" />
+                                </Grid>
+                            </Border>
+                            <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding IsDropTarget}" Value="True">
+                                    <Setter TargetName="RowBorder" Property="Background"
+                                            Value="{StaticResource SelectionBackground}" />
+                                    <Setter TargetName="RowBorder" Property="BorderBrush"
+                                            Value="{StaticResource AccentBrush}" />
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>

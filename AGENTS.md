@@ -12,7 +12,7 @@ src/PlaylistMaker/
   ViewModels/MainViewModel.cs state: flattened tree, playlist, undo/redo
   Models/                     FileSystemNode, PlaylistEntry, PlaylistSortMode, TrackMetadata
   Services/                   file system scanning, playlist IO, tag reading, ordering,
-                              missing-file repair, path helpers, undo stack
+                              missing-file repair, path helpers, undo stack, file transfers
   Views/                      three small dialogs: scope, ordering, missing file
 ```
 
@@ -42,6 +42,14 @@ src/PlaylistMaker/
 - **Playlist entries are objects, not strings**, because a broken entry has to keep its place and be repairable in situ (`PlaylistEntry.PointTo`).
 - **Relative paths on save.** `PlaylistFileService.BuildEntry` uses `Path.GetRelativePath` and forward slashes when the playlist shares a drive with the music, otherwise an absolute path. Never write absolute paths unconditionally.
 - **No external dialogs beyond the BCL.** Folder picking uses `Microsoft.Win32.OpenFolderDialog` (available in .NET 8 WPF). Do not pull in WinForms for `FolderBrowserDialog`.
+- **Drops onto the tree are real file operations, and `FileTransferService` owns them.** The code-behind only decides the target folder, the mode and the conflict policy; every `File.Move`/`Directory.Move`/`File.Copy` happens in `Services/FileTransferService.cs`. A plain drop moves and `Ctrl` copies (Windows convention), and both are announced in the status line while the drag hovers, because a move that happens without warning is how people lose files.
+- **A drop lands in a folder, never on a file row.** `ResolveDropTargetNode` maps a file row to the folder that holds it and returns `null` over empty space, so a sloppy drop does nothing rather than relocating files somewhere arbitrary.
+- **`IsTargetInsideSources` guards the destructive case.** A folder dropped onto itself or onto its own subfolder is refused in `DragOver` (the cursor shows "no") and again in `PerformFileTransfer`; without it a recursive folder copy can walk the tree into itself.
+- **A cross-volume move has to be copy + delete.** `Directory.Move`/`File.Move` throw `IOException` when the volumes differ, so `MoveEntry` falls back to a recursive copy and then deletes, and reports *"copied, but the original could not be removed"* when the delete fails - the caller must not re-point playlist entries at a path whose original is still there, so that case lands in `Failures`, not in `Outcomes`.
+- **After a transfer the tree is re-read, never rebuilt.** `MainViewModel.RefreshFolder` reloads a loaded folder and carries expansion state onto the matching paths, `InstallMovedBranch` rebuilds a moved folder's node at its new path so an expanded branch stays expanded, and `SelectExplorerPaths` re-selects by path and refocuses the first row. A `Clear()` + refill would drop the selection *and* the keyboard anchor - the same reason `RebuildVisibleNodes` inserts instead of clearing.
+- **A move re-points playlist entries in every tab; a copy re-points nothing.** `MainViewModel.RebasePlaylistEntries` maps each entry through `FileTransferService.TryMapPath` (paths inside a moved folder follow the folder), records an undo snapshot per affected tab, marks it dirty and raises the header. `TryMapPath` is also what maps the *selection* onto its new paths.
+- **A drop target that performs the move itself must say so.** `OnExplorerDrop` answers with `Performed DropEffect = Move`; without it a shell source (Explorer, Total Commander) tries to delete the originals again after they are already gone.
+- **Dragging out offers `Copy | Move` but prefers copy.** `Preferred DropEffect = Copy` keeps a modifier-free drag out to Explorer a copy. If `DoDragDrop` comes back with `Move` and the drop was not ours (`isFileOperationDrop`), an external app moved the files behind our back, so `RefreshAfterExternalMove` reloads the source folders and re-checks the entries instead of showing rows that no longer exist.
 - **Tag reading is intentionally narrow**: ID3v2.3/2.4 frames `TIT2`/`TRCK`, and FLAC Vorbis comments `TITLE`/`TRACKNUMBER`. Everything else falls back to the file name via `TagReader.FromFileName`. Extend `TagReader` rather than adding a package.
 
 ## Pitfalls hit before
@@ -49,4 +57,7 @@ src/PlaylistMaker/
 - `StaticResource` keys used in dialogs are declared in `App.xaml` - add new keys there, not per window.
 - `Visibility` bindings are typed (`Visibility`, not `string`) on `FileSystemNode`/`PlaylistEntry`: a string would rely on an implicit enum conversion.
 - Drag payloads carry both a private format (`PlaylistMaker.PlaylistEntry`, for internal reorder) and `FileDrop` (so dragging out to Explorer copies the files). The drop handler must check the private format first.
+- The drop highlight cannot come from an `ItemContainerStyle`: the default `ListBoxItem` template's own `IsSelected`/`IsMouseOver` triggers outrank any style setter, so the highlight lives on a `Border` inside the item template driven by `FileSystemNode.IsDropTarget` (`DataTemplate.Triggers` with `TargetName`).
+- A press on the chevron must not arm a drag: `OnExplorerMouseDown` returns early when the hit came from a `Button`, otherwise expanding a folder by its arrow also starts dragging the whole selection.
+- `DragOver` fires on every mouse move, so `ShowDropHint` only rewrites the status line when the text changes and restores the pre-drag message afterwards - and it must never touch focus.
 - `Window.PreviewKeyDown` tunnels from the window down, so window-level `Ctrl+S/Z/Y` runs before the playlist list's own key handler - keep `Delete`, `E` and `Ctrl+Up/Down` in the list handler only, so they do not fire while the tree has focus.

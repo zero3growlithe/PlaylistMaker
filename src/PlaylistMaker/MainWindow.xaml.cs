@@ -5,6 +5,7 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -20,6 +21,8 @@ namespace PlaylistMaker
     public partial class MainWindow : Window
     {
         private const string PlaylistEntryFormat = "PlaylistMaker.PlaylistEntry";
+        private const string PreferredDropEffectFormat = "Preferred DropEffect";
+        private const string PerformedDropEffectFormat = "Performed DropEffect";
         private const double DragThreshold = 6.0;
 
         private readonly MainViewModel viewModel = new MainViewModel();
@@ -30,6 +33,10 @@ namespace PlaylistMaker
         private bool isExplorerDragPending;
         private bool isPlaylistDragPending;
         private bool isSyncingTabSelection;
+        private bool isFileOperationDrop;
+        private FileSystemNode? dropTargetNode;
+        private string? dropHintText;
+        private string statusTextBeforeDrop = string.Empty;
 
         public MainWindow()
         {
@@ -503,6 +510,13 @@ namespace PlaylistMaker
 
         private void OnExplorerMouseDown(object sender, MouseButtonEventArgs e)
         {
+            // a press on the chevron is a click, not the start of a drag
+            if (FindAncestor<Button>(e.OriginalSource as DependencyObject) != null)
+            {
+                isExplorerDragPending = false;
+                return;
+            }
+
             explorerDragStart = e.GetPosition(ExplorerList);
             isExplorerDragPending = true;
         }
@@ -531,7 +545,44 @@ namespace PlaylistMaker
             isExplorerDragPending = false;
             DataObject data = new DataObject();
             data.SetData(DataFormats.FileDrop, paths);
-            DragDrop.DoDragDrop(ExplorerList, data, DragDropEffects.Copy);
+            // Explorer and other shell targets read this to decide what a modifier-free drop does;
+            // leaving the tree alone must never move anything, so the default is a copy
+            data.SetData(PreferredDropEffectFormat, BuildDropEffect(DragDropEffects.Copy));
+
+            isFileOperationDrop = false;
+            DragDropEffects performed = DragDrop.DoDragDrop(ExplorerList, data, DragDropEffects.Copy | DragDropEffects.Move);
+            bool handledHere = isFileOperationDrop;
+            isFileOperationDrop = false;
+
+            if (!handledHere && performed == DragDropEffects.Move)
+            {
+                // Shift-dragging out to Explorer moves the files behind our back, so the rows the
+                // tree is showing are now stale and the playlist entries may point at nothing
+                RefreshAfterExternalMove(paths);
+            }
+        }
+
+        /// <summary>Reloads the folders an external move emptied and re-checks the playlist entries.</summary>
+        private void RefreshAfterExternalMove(IEnumerable<string> movedPaths)
+        {
+            List<string> folders = new List<string>();
+            foreach (string path in movedPaths)
+            {
+                string? parent = Path.GetDirectoryName(PathUtilities.TrimTrailingSeparator(path));
+                if (!string.IsNullOrEmpty(parent))
+                {
+                    folders.Add(parent!);
+                }
+            }
+
+            viewModel.RefreshFolders(folders);
+            viewModel.RefreshEntryStates();
+            UpdateSummary("Moved out of the tree - folders reloaded, playlist entries re-checked.");
+        }
+
+        private static MemoryStream BuildDropEffect(DragDropEffects effect)
+        {
+            return new MemoryStream(BitConverter.GetBytes((int)effect));
         }
 
         private void OnExplorerRightButtonDown(object sender, MouseButtonEventArgs e)
@@ -1336,6 +1387,399 @@ namespace PlaylistMaker
             UpdateSummary(summary + ".");
         }
 
+        // ── Drops onto the tree: real file and folder operations ──────────
+        /// <summary>
+        /// A drag over the tree is a pending file operation, so the row that would receive it is
+        /// highlighted and the status line says what a drop would do. Drops that cannot work (a
+        /// folder onto itself, or no folder under the pointer) show the "no" cursor instead.
+        /// </summary>
+        private void OnExplorerDragOver(object sender, DragEventArgs e)
+        {
+            e.Handled = true;
+            e.Effects = DragDropEffects.None;
+
+            FileSystemNode? target = ResolveDropTargetNode(e);
+            string[] sources = GetDraggedPaths(e);
+            if (target == null || sources.Length == 0
+                || FileTransferService.IsTargetInsideSources(sources, target.FullPath))
+            {
+                SetDropTarget(null);
+                ShowDropHint(null);
+                return;
+            }
+
+            FileTransferMode mode = GetDropMode();
+            e.Effects = mode == FileTransferMode.Move ? DragDropEffects.Move : DragDropEffects.Copy;
+            SetDropTarget(target);
+            ShowDropHint(BuildDropHint(target, sources, mode));
+        }
+
+        private void OnExplorerDragLeave(object sender, DragEventArgs e)
+        {
+            SetDropTarget(null);
+            ShowDropHint(null);
+        }
+
+        private void OnExplorerDrop(object sender, DragEventArgs e)
+        {
+            e.Handled = true;
+            string[] sources = GetDraggedPaths(e);
+            FileSystemNode? target = ResolveDropTargetNode(e);
+            FileTransferMode mode = GetDropMode();
+            SetDropTarget(null);
+            ShowDropHint(null);
+
+            if (target == null || sources.Length == 0)
+            {
+                UpdateSummary("Drop ignored - put the pointer on a folder row.");
+                return;
+            }
+
+            // tells DoDragDrop in OnExplorerMouseMove that this drop was already carried out here
+            isFileOperationDrop = true;
+            bool transferred = PerformFileTransfer(target, sources, mode);
+            if (transferred && mode == FileTransferMode.Move)
+            {
+                MarkMovePerformed(e);
+            }
+        }
+
+        /// <summary>
+        /// Shell bookkeeping: a target that carries the move out itself has to say so, otherwise the
+        /// source (Explorer, Total Commander) tries to delete the originals a second time.
+        /// </summary>
+        private static void MarkMovePerformed(DragEventArgs e)
+        {
+            try
+            {
+                e.Data.SetData(PerformedDropEffectFormat, BuildDropEffect(DragDropEffects.Move));
+            }
+            catch (COMException)
+            {
+                // a few drag sources hand out a read-only data object; nothing to do about that
+            }
+            catch (NotSupportedException)
+            {
+            }
+        }
+
+        /// <summary>The folder a drop lands in: a folder row itself, or the folder holding a file row.</summary>
+        private FileSystemNode? ResolveDropTargetNode(DragEventArgs e)
+        {
+            DependencyObject? hit = ExplorerList.InputHitTest(e.GetPosition(ExplorerList)) as DependencyObject;
+            ListBoxItem? item = FindAncestor<ListBoxItem>(hit);
+            FileSystemNode? node = item?.DataContext as FileSystemNode;
+            if (node == null)
+            {
+                return null;
+            }
+            if (node.IsFolder)
+            {
+                return node;
+            }
+
+            string? parentPath = Path.GetDirectoryName(PathUtilities.TrimTrailingSeparator(node.FullPath));
+            return string.IsNullOrEmpty(parentPath) ? null : viewModel.FindLoadedNode(parentPath);
+        }
+
+        private static string[] GetDraggedPaths(DragEventArgs e)
+        {
+            if (!e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                return Array.Empty<string>();
+            }
+            return e.Data.GetData(DataFormats.FileDrop) as string[] ?? Array.Empty<string>();
+        }
+
+        /// <summary>Windows convention: a plain drop relocates, Ctrl keeps a copy at the source.</summary>
+        private static FileTransferMode GetDropMode()
+        {
+            bool copyRequested = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
+            return copyRequested ? FileTransferMode.Copy : FileTransferMode.Move;
+        }
+
+        private void SetDropTarget(FileSystemNode? node)
+        {
+            if (ReferenceEquals(dropTargetNode, node))
+            {
+                return;
+            }
+            if (dropTargetNode != null)
+            {
+                dropTargetNode.IsDropTarget = false;
+            }
+            dropTargetNode = node;
+            if (dropTargetNode != null)
+            {
+                dropTargetNode.IsDropTarget = true;
+            }
+        }
+
+        private static string BuildDropHint(FileSystemNode target, string[] sources, FileTransferMode mode)
+        {
+            string verb = mode == FileTransferMode.Move ? "Move" : "Copy";
+            string items = sources.Length == 1 ? "1 item" : sources.Length + " items";
+            string hint = verb + " " + items + " into \"" + target.Name + "\"";
+            return mode == FileTransferMode.Move
+                ? hint + " - hold Ctrl to copy instead"
+                : hint + " - release Ctrl to move instead";
+        }
+
+        /// <summary>
+        /// DragOver fires on every mouse move, so the hint is only rewritten when it changes, and the
+        /// status line from before the drag comes back when the pointer leaves the tree.
+        /// </summary>
+        private void ShowDropHint(string? hint)
+        {
+            if (string.Equals(dropHintText, hint, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            if (hint == null)
+            {
+                dropHintText = null;
+                StatusText.Text = statusTextBeforeDrop;
+                return;
+            }
+
+            if (dropHintText == null)
+            {
+                statusTextBeforeDrop = StatusText.Text;
+            }
+            dropHintText = hint;
+            StatusText.Text = hint;
+        }
+
+        /// <summary>Runs a drop as a real file operation; true when at least one item really moved or was copied.</summary>
+        private bool PerformFileTransfer(FileSystemNode target, string[] sourcePaths, FileTransferMode mode)
+        {
+            List<string> sources = new List<string>();
+            foreach (string path in sourcePaths)
+            {
+                if (string.IsNullOrWhiteSpace(path))
+                {
+                    continue;
+                }
+                string trimmed = PathUtilities.TrimTrailingSeparator(path);
+                if (File.Exists(trimmed) || Directory.Exists(trimmed))
+                {
+                    sources.Add(trimmed);
+                }
+            }
+
+            string targetDirectory = PathUtilities.TrimTrailingSeparator(target.FullPath);
+            if (sources.Count == 0)
+            {
+                UpdateSummary("Nothing to transfer - that item is gone from disk.");
+                return false;
+            }
+            if (!Directory.Exists(targetDirectory))
+            {
+                UpdateSummary("\"" + targetDirectory + "\" no longer exists.");
+                return false;
+            }
+            if (FileTransferService.IsTargetInsideSources(sources, targetDirectory))
+            {
+                UpdateSummary("A folder cannot be moved into itself.");
+                return false;
+            }
+
+            FileConflictPolicy policy = FileConflictPolicy.KeepBoth;
+            List<string> conflicts = FileTransferService.FindConflicts(sources, targetDirectory);
+            if (conflicts.Count > 0)
+            {
+                FileConflictPolicy? answer = AskConflictPolicy(conflicts, targetDirectory);
+                if (answer == null)
+                {
+                    UpdateSummary("Transfer cancelled.");
+                    return false;
+                }
+                policy = answer.Value;
+            }
+
+            // the rows are about to be rewritten, so remember what was selected before they move
+            List<string> selectionBefore = GetSelectedNodes().Select(node => node.FullPath).ToList();
+
+            FileTransferResult result = FileTransferService.Transfer(sources, targetDirectory, mode, policy);
+            if (result.Outcomes.Count == 0 && result.Failures.Count == 0)
+            {
+                UpdateSummary("Nothing to do - already in \"" + targetDirectory + "\".");
+                return false;
+            }
+
+            int repointedEntries = mode == FileTransferMode.Move
+                ? viewModel.RebasePlaylistEntries(result.Outcomes)
+                : 0;
+
+            SyncTreeAfterTransfer(result.Outcomes, targetDirectory, selectionBefore);
+
+            string verb = mode == FileTransferMode.Move ? "Moved" : "Copied";
+            string message = verb + " " + result.Outcomes.Count
+                + (result.Outcomes.Count == 1 ? " item" : " items") + " to \"" + targetDirectory + "\"";
+            if (result.SkippedCount > 0)
+            {
+                message += "   " + result.SkippedCount + " already there";
+            }
+            if (repointedEntries > 0)
+            {
+                message += "   " + repointedEntries + " playlist "
+                    + (repointedEntries == 1 ? "entry" : "entries") + " re-pointed";
+            }
+            if (result.Failures.Count > 0)
+            {
+                message += "   " + result.Failures.Count + " failed";
+            }
+
+            UpdateSummary(message);
+            ShowTransferFailures(result.Failures);
+            return result.Outcomes.Count > 0;
+        }
+
+        /// <summary>
+        /// Brings the tree back in line with the disk: reload the folders that changed, keep the
+        /// expanded branch of every moved folder, open the destination, and put the selection back
+        /// on the rows that just moved so the next keystroke acts on what is new.
+        /// </summary>
+        private void SyncTreeAfterTransfer(
+            IReadOnlyList<FileTransferOutcome> outcomes,
+            string targetDirectory,
+            List<string> selectionBefore)
+        {
+            List<BranchMove> branches = new List<BranchMove>();
+            List<string> foldersToReload = new List<string>();
+            foreach (FileTransferOutcome outcome in outcomes)
+            {
+                FileSystemNode? sourceNode = viewModel.FindLoadedNode(outcome.SourcePath);
+                if (sourceNode != null && sourceNode.IsFolder && sourceNode.ChildrenLoaded)
+                {
+                    branches.Add(new BranchMove(sourceNode, outcome.TargetPath));
+                }
+
+                string? sourceParent = Path.GetDirectoryName(outcome.SourcePath);
+                if (!string.IsNullOrEmpty(sourceParent))
+                {
+                    foldersToReload.Add(sourceParent!);
+                }
+            }
+            foldersToReload.Add(targetDirectory);
+
+            viewModel.RefreshFolders(foldersToReload);
+
+            // a reload rebuilds the destination's children, so the node is looked up again here
+            FileSystemNode? targetFolder = viewModel.FindLoadedNode(targetDirectory);
+            viewModel.ExpandFolder(targetFolder);
+            targetFolder = viewModel.FindLoadedNode(targetDirectory);
+            foreach (BranchMove branch in branches)
+            {
+                viewModel.InstallMovedBranch(targetFolder, branch.Node, branch.NewPath);
+            }
+
+            List<string> wanted = new List<string>();
+            foreach (string path in selectionBefore)
+            {
+                string mappedPath;
+                if (FileTransferService.TryMapPath(outcomes, path, out mappedPath))
+                {
+                    wanted.Add(mappedPath);
+                }
+            }
+            foreach (FileTransferOutcome outcome in outcomes)
+            {
+                bool known = false;
+                foreach (string existing in wanted)
+                {
+                    if (PathUtilities.PathsEqual(existing, outcome.TargetPath))
+                    {
+                        known = true;
+                        break;
+                    }
+                }
+                if (!known)
+                {
+                    wanted.Add(outcome.TargetPath);
+                }
+            }
+
+            SelectExplorerPaths(wanted);
+        }
+
+        /// <summary>Selects the given paths in the tree and leaves keyboard focus on the first one.</summary>
+        private void SelectExplorerPaths(IReadOnlyList<string> paths)
+        {
+            ExplorerList.SelectedItems.Clear();
+            FileSystemNode? firstSelected = null;
+            foreach (string path in paths)
+            {
+                FileSystemNode? node = viewModel.VisibleNodes.FirstOrDefault(
+                    candidate => PathUtilities.PathsEqual(candidate.FullPath, path));
+                if (node == null)
+                {
+                    continue;
+                }
+                ExplorerList.SelectedItems.Add(node);
+                if (firstSelected == null)
+                {
+                    firstSelected = node;
+                }
+            }
+
+            if (firstSelected == null)
+            {
+                ExplorerList.Focus();
+                return;
+            }
+
+            ExplorerList.ScrollIntoView(firstSelected);
+            FocusExplorerRow(firstSelected);
+        }
+
+        private FileConflictPolicy? AskConflictPolicy(IReadOnlyList<string> conflicts, string targetDirectory)
+        {
+            string message = conflicts.Count == 1
+                ? "\"" + Path.GetFileName(conflicts[0]) + "\" already exists in \"" + targetDirectory + "\"."
+                : conflicts.Count + " of these items already exist in \"" + targetDirectory + "\".";
+            message += Environment.NewLine + Environment.NewLine
+                + "Yes - replace what is already there" + Environment.NewLine
+                + "No - keep both (the incoming item gets a number)" + Environment.NewLine
+                + "Cancel - change nothing";
+
+            MessageBoxResult answer = MessageBox.Show(
+                this, message, "Items already exist", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+            if (answer == MessageBoxResult.Yes)
+            {
+                return FileConflictPolicy.Replace;
+            }
+            if (answer == MessageBoxResult.No)
+            {
+                return FileConflictPolicy.KeepBoth;
+            }
+            return null;
+        }
+
+        private void ShowTransferFailures(IReadOnlyList<string> failures)
+        {
+            if (failures.Count == 0)
+            {
+                return;
+            }
+
+            string message = failures.Count == 1
+                ? "One item could not be transferred:"
+                : failures.Count + " items could not be transferred:";
+            int shown = Math.Min(failures.Count, 8);
+            for (int index = 0; index < shown; index++)
+            {
+                message += Environment.NewLine + failures[index];
+            }
+            if (failures.Count > shown)
+            {
+                message += Environment.NewLine + "...";
+            }
+
+            MessageBox.Show(this, message, "File transfer", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+
         // ── Drops and helpers ─────────────────────────────────────────────
         private void HandleDroppedPaths(IEnumerable<string> droppedPaths)
         {
@@ -1576,6 +2020,20 @@ namespace PlaylistMaker
                 current = isVisual ? VisualTreeHelper.GetParent(current) : LogicalTreeHelper.GetParent(current);
             }
             return null;
+        }
+
+        /// <summary>A folder whose tree node has to be rebuilt at the path it was moved to.</summary>
+        private sealed class BranchMove
+        {
+            public BranchMove(FileSystemNode node, string newPath)
+            {
+                Node = node;
+                NewPath = newPath;
+            }
+
+            public FileSystemNode Node { get; }
+
+            public string NewPath { get; }
         }
 
         private static T? FindChild<T>(DependencyObject? parent) where T : DependencyObject
