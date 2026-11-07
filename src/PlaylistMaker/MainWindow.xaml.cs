@@ -617,6 +617,22 @@ namespace PlaylistMaker
             addItem.Click += OnAddSelectedToPlaylistClick;
             menu.Items.Add(addItem);
 
+            List<FileSystemNode> selectedPlaylists = selected.Where(node => node.IsPlaylist).ToList();
+            if (selectedPlaylists.Count > 0)
+            {
+                MenuItem relativeItem = new MenuItem
+                {
+                    Header = selectedPlaylists.Count == 1
+                        ? "Use relative paths"
+                        : "Use relative paths in " + selectedPlaylists.Count + " playlists",
+                    ToolTip = "Rewrites the playlist so its entries point at the music relative to the "
+                              + "playlist file, so the folder and the playlist can be moved or copied "
+                              + "together. Entries on another drive stay absolute."
+                };
+                relativeItem.Click += OnUseRelativePathsClick;
+                menu.Items.Add(relativeItem);
+            }
+
             if (showSaveAsPlaylist)
             {
                 MenuItem saveItem = new MenuItem { Header = "Save as playlist..." };
@@ -675,6 +691,79 @@ namespace PlaylistMaker
                 return;
             }
             PathUtilities.ShowInExplorer(selected[0].FullPath);
+        }
+
+        /// <summary>
+        /// Rewrites the selected playlist files so their entries read relative to the playlist,
+        /// which is exactly the spelling a save produces, and reports the outcome in the status line.
+        /// Files that are already as relative as they can get are left untouched.
+        /// </summary>
+        private void OnUseRelativePathsClick(object sender, RoutedEventArgs e)
+        {
+            List<FileSystemNode> playlists = GetSelectedNodes().Where(node => node.IsPlaylist).ToList();
+            if (playlists.Count == 0)
+            {
+                return;
+            }
+
+            List<string> reports = new List<string>();
+            int convertedFiles = 0;
+            int convertedEntries = 0;
+
+            foreach (FileSystemNode node in playlists)
+            {
+                try
+                {
+                    RelativePathConversion conversion = PlaylistFileService.ConvertToRelativePaths(node.FullPath);
+                    if (conversion.EntryCount == 0)
+                    {
+                        reports.Add("\"" + node.Name + "\" has no entries.");
+                        continue;
+                    }
+
+                    if (conversion.ConvertedCount > 0)
+                    {
+                        convertedFiles++;
+                        convertedEntries += conversion.ConvertedCount;
+                        string report = "\"" + node.Name + "\": " + conversion.ConvertedCount
+                                        + " entr" + (conversion.ConvertedCount == 1 ? "y" : "ies") + " now relative";
+                        report += conversion.StillAbsoluteCount > 0
+                            ? ", " + conversion.StillAbsoluteCount + " left absolute (another drive)."
+                            : ".";
+                        reports.Add(report);
+                    }
+                    else
+                    {
+                        string report = "\"" + node.Name + "\" already used relative paths ("
+                                        + conversion.AlreadyRelativeCount + " entr"
+                                        + (conversion.AlreadyRelativeCount == 1 ? "y" : "ies") + ")";
+                        report += conversion.StillAbsoluteCount > 0
+                            ? ", " + conversion.StillAbsoluteCount + " cannot be: another drive."
+                            : ".";
+                        reports.Add(report);
+                    }
+                }
+                catch (IOException exception)
+                {
+                    reports.Add("\"" + node.Name + "\" was not rewritten: " + exception.Message);
+                }
+                catch (UnauthorizedAccessException exception)
+                {
+                    reports.Add("\"" + node.Name + "\" was not rewritten: " + exception.Message);
+                }
+                catch (InvalidOperationException exception)
+                {
+                    reports.Add("\"" + node.Name + "\" was not rewritten: " + exception.Message);
+                }
+            }
+
+            string summary = string.Join(" ", reports);
+            if (playlists.Count > 1)
+            {
+                summary = convertedFiles + " of " + playlists.Count + " playlists updated, " + convertedEntries
+                          + " entr" + (convertedEntries == 1 ? "y" : "ies") + " now relative. " + summary;
+            }
+            UpdateSummary(summary);
         }
 
         // ── Playlist panel ────────────────────────────────────────────────

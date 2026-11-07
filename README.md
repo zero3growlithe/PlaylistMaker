@@ -36,11 +36,23 @@ Built with WPF on .NET 8. No external packages, no telemetry, no installer - one
 - Folder: *Add to playlist* and *Save as playlist...* - both ask whether to take only the files directly inside or all subfolders.
 - Multiple selected music files: *Add to playlist* and *Save as playlist...*.
 - **Multiple selected folders: *Save each as playlist...*** - walks the folders one by one and treats each exactly like *Save as playlist*: the folder name is the default file name, the file is written next to the music, and a small dialog per folder offers **Save**, **Skip this folder** and **Cancel all** (Cancel all stops the whole run instead of just the current folder).
-- Playlist file: *Add to playlist*.
+- Playlist file: *Add to playlist* and ***Use relative paths*** (see below).
 
 *Save as playlist* additionally asks for the order: ID3 tag track number, file name A-Z, file name Z-A, track name A-Z, track name Z-A, or random. *Save each as playlist* asks that once and applies the same order to every folder.
 
 When you save a single selected folder, the default playlist name is **that folder's name** (sanitised for Windows).
+
+### *Use relative paths* on a playlist you already have
+
+Right-click one or more playlist files in the tree and pick **Use relative paths** to rewrite them on disk so their entries point at the music *relative to the playlist file*, exactly the spelling the app's own save produces. That is what makes an existing playlist survive being moved or copied together with its music folder - a playlist written by another program, or saved before a move, is normally full of absolute paths.
+
+- Only the path lines change. `#EXTM3U`, `#EXTINF` headers, comments and the line endings are kept byte for byte, so titles and ordering are untouched.
+- Entries that sit on another drive (or another share) have no relative form and stay absolute; the status line tells you how many. Move that music next to the playlist first if you want those converted too.
+- A file that is already relative is not rewritten at all, so nothing is touched and its modification time stays put.
+- Non-UTF-8 playlists are refused instead of being re-encoded, because re-encoding would corrupt every non-ASCII track name.
+- `.pls` files work too: only their `FileN=` values are rewritten.
+
+*Save as playlist* writes relative paths on its own whenever the playlist lands on the same drive as the music - this menu item is for the playlists that already exist.
 
 ## Keyboard shortcuts
 
@@ -62,7 +74,7 @@ The save dialog starts in the deepest folder that contains every track of the pl
 
 ## What it reads and writes
 
-- Playlists: `.m3u`, `.m3u8` (read and write), `.pls` (read only).
+- Playlists: `.m3u`, `.m3u8` (read and write), `.pls` (read only - *Use relative paths* rewrites only its `FileN=` values, the app never creates a `.pls`).
 - Music: mp3, mp2, flac, m4a, m4b, aac, ogg, oga, opus, wav, wma, aiff, aif, ape, wv, alac, dsf, dff, mpc, spx, tta, mid, midi, mod, xm, it, s3m, vgm, vgz, nsf, spc, psf, gbs.
 - Title, track number, album and artist are read from ID3v2 tags (MP3) and Vorbis comments (FLAC/OGG). Other formats fall back to the file name, e.g. `03 - Intro.flac` becomes track 3, "Intro".
 - Track lengths are read straight out of the container headers - no decoding and no external library: MP3 (Xing/Info frame count, otherwise a constant-bitrate estimate), FLAC (STREAMINFO), WAV (RIFF fmt/data), OGG/Opus (last granule position) and M4A/MP4 (mvhd box). Formats outside that list show a dash instead of a length. Metadata, lengths and sizes are read lazily per row, so a 50 000 track playlist only pays for what is on screen.
