@@ -64,9 +64,9 @@ namespace PlaylistMaker.Views
             currentPath = queue[0];
             PathBox.Text = currentPath;
             FileNameText.Text = Path.GetFileName(currentPath) is { Length: > 0 } fileName ? fileName : currentPath;
+            // only the search term is per file: the artist and album boxes keep what was typed, so a
+            // whole album can be walked through without retyping them - Clear artist/album empties them
             SearchTermBox.Text = string.Empty;
-            ArtistBox.Text = string.Empty;
-            AlbumBox.Text = string.Empty;
 
             int decided = totalCount - queue.Count;
             ProgressText.Text = decided + " of " + totalCount + " decided, " + queue.Count
@@ -99,6 +99,22 @@ namespace PlaylistMaker.Views
                 options.AllFolderLevels);
             plans.AddRange(applied);
             ShowNext();
+        }
+
+        /// <summary>Empties the artist and album boxes; the search term is per file and is left alone.</summary>
+        private void OnClearArtistAlbumClick(object sender, RoutedEventArgs e)
+        {
+            ArtistBox.Text = string.Empty;
+            AlbumBox.Text = string.Empty;
+
+            if (options.FillArtist)
+            {
+                ArtistBox.Focus();
+            }
+            else
+            {
+                AlbumBox.Focus();
+            }
         }
 
         private void OnSkipFileClick(object sender, RoutedEventArgs e)

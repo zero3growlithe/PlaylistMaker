@@ -1,7 +1,7 @@
 <Window x:Class="PlaylistMaker.Views.GenerateTagsOneByOneWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Generate ID3 tags - one file at a time" Height="452" Width="820"
+        Title="Generate ID3 tags - one file at a time" Height="452" Width="900"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
         Background="{DynamicResource WindowBackground}">
     <Grid Margin="16">
@@ -60,13 +60,15 @@
 
         <TextBlock Grid.Row="7" Style="{StaticResource HintText}" TextWrapping="Wrap" VerticalAlignment="Top"
                    Margin="0,10,0,0"
-                   Text="Accept writes the artist and album into every queued track whose file name (and, when you asked for it, whose folder name) contains the search term, and those tracks leave the queue; with an empty search term only this file, plus files carrying the same name, are filled in. Skip file drops this one, Skip folder drops the rest of this file's folder, Skip all files stops asking and writes what you accepted so far. Cancel writes nothing." />
+                   Text="Accept writes the artist and album into every queued track whose file name (and, when you asked for it, whose folder name) contains the search term, and those tracks leave the queue; with an empty search term only this file, plus files carrying the same name, are filled in. Skip file drops this one, Skip folder drops the rest of this file's folder, Skip all files stops asking and writes what you accepted so far. The artist and album boxes keep what you typed as you move from file to file - Clear artist/album empties them. Cancel writes nothing." />
 
         <StackPanel Grid.Row="8" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
             <Button Content="Accept" IsDefault="True" Click="OnAcceptClick" />
             <Button Content="Skip file" Click="OnSkipFileClick" />
             <Button Content="Skip folder" Click="OnSkipFolderClick" />
             <Button Content="Skip all files" Click="OnSkipAllClick" />
+            <Button Content="Clear artist/album" Click="OnClearArtistAlbumClick"
+                    ToolTip="Empty the artist and album boxes. They keep what you typed when you move to the next file." />
             <Button Content="Cancel" IsCancel="True" />
         </StackPanel>
     </Grid>
