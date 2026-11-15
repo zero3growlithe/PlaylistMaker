@@ -13,7 +13,9 @@ src/PlaylistMaker/
   Models/                     FileSystemNode, PlaylistEntry, PlaylistSortMode, TrackMetadata
   Services/                   file system scanning, playlist IO, tag reading, ordering,
                               missing-file repair, path helpers, undo stack, file transfers
-  Views/                      three small dialogs: scope, ordering, missing file
+  Views/                      dialogs: scope, ordering, missing file, save-each, sort,
+                              generate-tags (options / one list / one by one)
+  Themes/                     Light.xaml + Dark.xaml palettes, Controls.xaml control styles
 ```
 
 ## Design decisions worth keeping
@@ -51,10 +53,12 @@ src/PlaylistMaker/
 - **A drop target that performs the move itself must say so.** `OnExplorerDrop` answers with `Performed DropEffect = Move`; without it a shell source (Explorer, Total Commander) tries to delete the originals again after they are already gone.
 - **Dragging out offers `Copy | Move` but prefers copy.** `Preferred DropEffect = Copy` keeps a modifier-free drag out to Explorer a copy. If `DoDragDrop` comes back with `Move` and the drop was not ours (`isFileOperationDrop`), an external app moved the files behind our back, so `RefreshAfterExternalMove` reloads the source folders and re-checks the entries instead of showing rows that no longer exist.
 - **Tag reading is intentionally narrow**: ID3v2.3/2.4 frames `TIT2`/`TRCK`, and FLAC Vorbis comments `TITLE`/`TRACKNUMBER`. Everything else falls back to the file name via `TagReader.FromFileName`. Extend `TagReader` rather than adding a package.
+- **Colours only ever come from the palette, through `DynamicResource`.** `Themes/Light.xaml` and `Themes/Dark.xaml` define the same keys; `Themes/Controls.xaml` styles the controls and `Services/ThemeManager.cs` swaps one palette dictionary for the other at run time. A `StaticResource` brush reference freezes the colour at load time and the control keeps the old theme until restart - the one exception is a *style* key (`HintText`, `IconButton`, `{x:Type ...}` in `BasedOn`), which is safe because the style's own setters are dynamic.
+- **A window-level implicit style needs `BasedOn`.** `MainWindow` re-styles `GridViewColumnHeader` to add the column-chooser `EventSetter`; without `BasedOn="{StaticResource {x:Type GridViewColumnHeader}}"` that local style *replaces* the themed one and the header loses its template (light chrome on a dark window).
 
 ## Pitfalls hit before
 - `x:Class` in `Views/*.xaml` must stay `PlaylistMaker.Views.*`; the folder name is part of the namespace.
-- `StaticResource` keys used in dialogs are declared in `App.xaml` - add new keys there, not per window.
+- `StaticResource` keys used in dialogs are declared in `Themes/Controls.xaml` (styles) or `Themes/Light.xaml` + `Themes/Dark.xaml` (brushes) - a new *brush* must be added to **both** palettes with the same key, or the second theme throws on the missing key.
 - `Visibility` bindings are typed (`Visibility`, not `string`) on `FileSystemNode`/`PlaylistEntry`: a string would rely on an implicit enum conversion.
 - Drag payloads carry both a private format (`PlaylistMaker.PlaylistEntry`, for internal reorder) and `FileDrop` (so dragging out to Explorer copies the files). The drop handler must check the private format first.
 - The drop highlight cannot come from an `ItemContainerStyle`: the default `ListBoxItem` template's own `IsSelected`/`IsMouseOver` triggers outrank any style setter, so the highlight lives on a `Border` inside the item template driven by `FileSystemNode.IsDropTarget` (`DataTemplate.Triggers` with `TargetName`).

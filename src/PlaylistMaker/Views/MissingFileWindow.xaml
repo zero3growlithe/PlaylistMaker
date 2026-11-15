@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Fix missing file" Height="240" Width="600"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
-        Background="{StaticResource WindowBackground}">
+        Background="{DynamicResource WindowBackground}">
     <Grid Margin="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -16,7 +16,9 @@
         <TextBlock Grid.Row="0" Text="This entry does not exist any more:" Margin="0,0,0,8" FontWeight="SemiBold" />
 
         <TextBox Grid.Row="1" x:Name="MissingPathBox" IsReadOnly="True" TextWrapping="Wrap"
-                 Margin="0,0,0,12" Padding="4" BorderBrush="{StaticResource PanelBorder}" />
+                 Margin="0,0,0,12" Padding="4"
+                 Background="{DynamicResource InputReadOnlyBackground}"
+                 BorderBrush="{DynamicResource PanelBorder}" />
 
         <TextBlock Grid.Row="2" Style="{StaticResource HintText}" TextWrapping="Wrap" Margin="0,0,0,12"
                    Text="Pick the file itself, or pick a folder and Playlist Maker will look the file up there by name." />

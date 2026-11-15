@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Generate ID3 tags from file names" Height="600" Width="1000"
         WindowStartupLocation="CenterOwner" ResizeMode="CanResize"
-        Background="{StaticResource WindowBackground}">
+        Background="{DynamicResource WindowBackground}">
     <Grid Margin="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -49,16 +49,16 @@
                                  IsReadOnlyCaretVisible="True" ToolTip="{Binding FolderPath}"
                                  Padding="3,2" VerticalContentAlignment="Center"
                                  Margin="0,0,4,0"
-                                 Background="#FFEDEFF2" BorderBrush="{StaticResource PanelBorder}" />
+                                 Background="{DynamicResource InputReadOnlyBackground}" BorderBrush="{DynamicResource PanelBorder}" />
                         <!-- a collapsed box collapses its Auto column, so a hidden column takes no room -->
                         <TextBox Grid.Column="1" Text="{Binding Artist, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                  Visibility="{Binding ArtistVisibility}" Width="240"
                                  Padding="3,2" VerticalContentAlignment="Center"
-                                 BorderBrush="{StaticResource PanelBorder}" />
+                                 BorderBrush="{DynamicResource PanelBorder}" />
                         <TextBox Grid.Column="2" Text="{Binding Album, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                  Visibility="{Binding AlbumVisibility}" Width="240" Margin="4,0,0,0"
                                  Padding="3,2" VerticalContentAlignment="Center"
-                                 BorderBrush="{StaticResource PanelBorder}" />
+                                 BorderBrush="{DynamicResource PanelBorder}" />
                     </Grid>
                 </DataTemplate>
             </ListBox.ItemTemplate>

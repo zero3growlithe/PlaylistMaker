@@ -27,6 +27,9 @@ namespace PlaylistMaker.Services
         /// <summary>Column order, visibility and widths, in display order.</summary>
         public List<ColumnSetting> Columns { get; set; } = new List<ColumnSetting>();
 
+        /// <summary>"Light" or "Dark"; anything else (including an older settings file) means light.</summary>
+        public string Theme { get; set; } = "Light";
+
         public static string SettingsFilePath
         {
             get

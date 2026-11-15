@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Generate ID3 tags - one file at a time" Height="384" Width="820"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
-        Background="{StaticResource WindowBackground}">
+        Background="{DynamicResource WindowBackground}">
     <Grid Margin="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -21,7 +21,7 @@
         <TextBlock Grid.Row="1" Text="Full path (read only, can be copied):" Style="{StaticResource HintText}" Margin="0,0,0,4" />
         <TextBox Grid.Row="2" x:Name="PathBox" IsReadOnly="True" IsReadOnlyCaretVisible="True"
                  Padding="3,2" VerticalContentAlignment="Center" Margin="0,0,0,10"
-                 Background="#FFEDEFF2" BorderBrush="{StaticResource PanelBorder}" />
+                 Background="{DynamicResource InputReadOnlyBackground}" BorderBrush="{DynamicResource PanelBorder}" />
 
         <TextBlock Grid.Row="3" x:Name="FileNameText" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,12" />
 
@@ -32,7 +32,7 @@
             </Grid.ColumnDefinitions>
             <TextBlock Grid.Column="0" Text="Artist" />
             <TextBox Grid.Column="1" x:Name="ArtistBox" Padding="3,2" VerticalContentAlignment="Center"
-                     BorderBrush="{StaticResource PanelBorder}" />
+                     BorderBrush="{DynamicResource PanelBorder}" />
         </Grid>
 
         <Grid Grid.Row="5" x:Name="AlbumRow" Margin="0,0,0,6">
@@ -42,7 +42,7 @@
             </Grid.ColumnDefinitions>
             <TextBlock Grid.Column="0" Text="Album" />
             <TextBox Grid.Column="1" x:Name="AlbumBox" Padding="3,2" VerticalContentAlignment="Center"
-                     BorderBrush="{StaticResource PanelBorder}" />
+                     BorderBrush="{DynamicResource PanelBorder}" />
         </Grid>
 
         <TextBlock Grid.Row="6" Style="{StaticResource HintText}" TextWrapping="Wrap" VerticalAlignment="Top"

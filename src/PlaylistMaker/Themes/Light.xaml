@@ -1,0 +1,61 @@
+<!--
+    Light palette. Every brush the app paints with is defined here, so the dark palette can be
+    swapped in at run time (see Services/ThemeManager.cs) without anything else changing.
+    Controls.xaml reads all of these through DynamicResource, never StaticResource.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- ── Surfaces ────────────────────────────────────────────────────── -->
+    <SolidColorBrush x:Key="WindowBackground" Color="#FFF7F8FA" />
+    <SolidColorBrush x:Key="PanelBackground" Color="#FFFFFFFF" />
+    <SolidColorBrush x:Key="PanelBorder" Color="#FFD7DBE0" />
+
+    <!-- ── Text ────────────────────────────────────────────────────────── -->
+    <SolidColorBrush x:Key="TextPrimary" Color="#FF1F2328" />
+    <SolidColorBrush x:Key="TextSecondary" Color="#FF6A737D" />
+    <SolidColorBrush x:Key="SelectionText" Color="#FF1F2328" />
+
+    <!-- ── Accents and state ───────────────────────────────────────────── -->
+    <SolidColorBrush x:Key="AccentBrush" Color="#FF2F6FEB" />
+    <SolidColorBrush x:Key="MissingBrush" Color="#FFE0A800" />
+    <SolidColorBrush x:Key="SelectionBackground" Color="#FFDCE7FB" />
+    <SolidColorBrush x:Key="ItemHoverBackground" Color="#FFF0F2F5" />
+
+    <!-- ── Buttons and tabs ────────────────────────────────────────────── -->
+    <SolidColorBrush x:Key="ControlBackground" Color="#FFEDEFF2" />
+    <SolidColorBrush x:Key="ControlHoverBackground" Color="#FFE1E6EE" />
+    <SolidColorBrush x:Key="ControlPressedBackground" Color="#FFD6DBE2" />
+    <SolidColorBrush x:Key="TabBackground" Color="#FFEDEFF2" />
+    <SolidColorBrush x:Key="TabHoverBackground" Color="#FFE1E6EE" />
+
+    <!-- ── Inputs, headers, scroll bars, menus ─────────────────────────── -->
+    <SolidColorBrush x:Key="InputBackground" Color="#FFFFFFFF" />
+    <SolidColorBrush x:Key="InputReadOnlyBackground" Color="#FFF2F3F5" />
+    <SolidColorBrush x:Key="HeaderBackground" Color="#FFF2F3F5" />
+    <SolidColorBrush x:Key="ScrollBarThumb" Color="#FFC4C9D0" />
+    <SolidColorBrush x:Key="ScrollBarThumbHover" Color="#FFA9B0B9" />
+    <SolidColorBrush x:Key="MenuBackground" Color="#FFFFFFFF" />
+    <SolidColorBrush x:Key="MenuHoverBackground" Color="#FFEDEFF2" />
+    <SolidColorBrush x:Key="ToolTipBackground" Color="#FFFFFFFF" />
+
+    <!--
+        The stock WPF templates (scroll bars, message boxes inside the app, tooltips, the edit box
+        of a ComboBox) paint from the SystemColors keys, so they are overridden here as well -
+        otherwise a dark window would show white patches.
+    -->
+    <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#FFFFFFFF" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.WindowTextBrushKey}" Color="#FF1F2328" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#FFEDEFF2" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.ControlTextBrushKey}" Color="#FF1F2328" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.GrayTextBrushKey}" Color="#FF6A737D" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#FFDCE7FB" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#FF1F2328" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="#FFEDEFF2" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}" Color="#FF1F2328" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.MenuBrushKey}" Color="#FFFFFFFF" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.MenuTextBrushKey}" Color="#FF1F2328" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.InfoBrushKey}" Color="#FFFFFFFF" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.InfoTextBrushKey}" Color="#FF1F2328" />
+
+</ResourceDictionary>

@@ -45,6 +45,12 @@ Built with WPF on .NET 8. No external packages, no telemetry, no installer - one
 
 When you save a single selected folder, the default playlist name is **that folder's name** (sanitised for Windows).
 
+**Theme**
+
+- The toolbar has a **Dark theme** tick box. It swaps the palette of the running app - main window, lists, menus, tooltips, scroll bars and every dialog that is still open - and the choice is written to `settings.json`, so the next start comes up in the same theme.
+- The two palettes are `Themes/Light.xaml` and `Themes/Dark.xaml`; they define exactly the same keys. `Themes/Controls.xaml` holds every control style and takes its colours from the palette with `DynamicResource`, which is what makes a swap repaint instead of requiring a restart.
+- Both palettes also override the `SystemColors` keys, so the stock templates the app does not restyle (scroll bars inside old controls, a `ComboBox` edit box, native tooltips) cannot fall back to white on a dark window.
+
 ### *Generate ID3 tags from file names*
 
 Right-click a folder (or several) in the tree and pick **Generate ID3 tags from file names...** to fill in artist and album from names you type once:

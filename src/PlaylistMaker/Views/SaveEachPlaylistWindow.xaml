@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Save each folder as a playlist" Height="286" Width="660"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
-        Background="{StaticResource WindowBackground}">
+        Background="{DynamicResource WindowBackground}">
     <Grid Margin="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -25,7 +25,7 @@
         <DockPanel Grid.Row="3">
             <Button DockPanel.Dock="Right" Content="Browse..." Click="OnBrowseClick" Margin="6,0,0,0" />
             <TextBox x:Name="FileNameBox" Padding="4" VerticalContentAlignment="Center"
-                     BorderBrush="{StaticResource PanelBorder}" />
+                     BorderBrush="{DynamicResource PanelBorder}" />
         </DockPanel>
 
         <TextBlock Grid.Row="4" x:Name="FolderText" Style="{StaticResource HintText}" TextWrapping="Wrap"

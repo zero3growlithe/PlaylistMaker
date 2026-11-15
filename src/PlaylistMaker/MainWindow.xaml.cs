@@ -34,6 +34,7 @@ namespace PlaylistMaker
         private bool isExplorerDragPending;
         private bool isPlaylistDragPending;
         private bool isSyncingTabSelection;
+        private bool isSyncingTheme;
         private bool isFileOperationDrop;
         private FileSystemNode? dropTargetNode;
         private string? dropHintText;
@@ -54,6 +55,26 @@ namespace PlaylistMaker
             viewModel.Initialize();
             BindActiveTab();
             UpdateSummary("Ready. Drag music onto the playlist or onto another tab.");
+
+            // the palette was already applied in App.OnStartup, before this window existed
+            isSyncingTheme = true;
+            DarkThemeCheckBox.IsChecked = ThemeManager.Current == AppTheme.Dark;
+            isSyncingTheme = false;
+        }
+
+        // ── Theme ─────────────────────────────────────────────────────────
+        private void OnThemeCheckBoxChanged(object sender, RoutedEventArgs e)
+        {
+            if (isSyncingTheme)
+            {
+                return;
+            }
+
+            AppTheme theme = DarkThemeCheckBox.IsChecked == true ? AppTheme.Dark : AppTheme.Light;
+            ThemeManager.Apply(theme);
+
+            userSettings.Theme = ThemeManager.ToSettingValue(theme);
+            userSettings.Save();
         }
 
         // ── Tabs ──────────────────────────────────────────────────────────
