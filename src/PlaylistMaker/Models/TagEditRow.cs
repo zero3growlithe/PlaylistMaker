@@ -10,6 +10,7 @@ namespace PlaylistMaker.Models
     /// </summary>
     public sealed class TagEditRow
     {
+        // these two match the Width of the artist and album boxes in GenerateTagsWindow.xaml
         public const double ArtistColumnPixels = 240.0;
 
         public const double AlbumColumnPixels = 240.0;
@@ -42,12 +43,6 @@ namespace PlaylistMaker.Models
         public Visibility ArtistVisibility => showArtist ? Visibility.Visible : Visibility.Collapsed;
 
         public Visibility AlbumVisibility => showAlbum ? Visibility.Visible : Visibility.Collapsed;
-
-        public GridLength ArtistColumnWidth =>
-            new GridLength(showArtist ? ArtistColumnPixels : 0.0, GridUnitType.Pixel);
-
-        public GridLength AlbumColumnWidth =>
-            new GridLength(showAlbum ? AlbumColumnPixels : 0.0, GridUnitType.Pixel);
 
         private static string BuildFileName(string filePath)
         {

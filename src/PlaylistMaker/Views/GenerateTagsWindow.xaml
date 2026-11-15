@@ -41,20 +41,22 @@
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="{Binding ArtistColumnWidth}" />
-                            <ColumnDefinition Width="{Binding AlbumColumnWidth}" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
                         <TextBox Grid.Column="0" Text="{Binding FileName, Mode=OneWay}" IsReadOnly="True"
                                  IsReadOnlyCaretVisible="True" ToolTip="{Binding FolderPath}"
                                  Padding="3,2" VerticalContentAlignment="Center"
-                                 Background="#FFF2F3F5" BorderBrush="{StaticResource PanelBorder}" />
+                                 Margin="0,0,4,0"
+                                 Background="#FFEDEFF2" BorderBrush="{StaticResource PanelBorder}" />
+                        <!-- a collapsed box collapses its Auto column, so a hidden column takes no room -->
                         <TextBox Grid.Column="1" Text="{Binding Artist, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                 Visibility="{Binding ArtistVisibility}" Margin="4,0,0,0"
+                                 Visibility="{Binding ArtistVisibility}" Width="240"
                                  Padding="3,2" VerticalContentAlignment="Center"
                                  BorderBrush="{StaticResource PanelBorder}" />
                         <TextBox Grid.Column="2" Text="{Binding Album, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                 Visibility="{Binding AlbumVisibility}" Margin="4,0,0,0"
+                                 Visibility="{Binding AlbumVisibility}" Width="240" Margin="4,0,0,0"
                                  Padding="3,2" VerticalContentAlignment="Center"
                                  BorderBrush="{StaticResource PanelBorder}" />
                     </Grid>
