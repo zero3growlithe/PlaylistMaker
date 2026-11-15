@@ -62,7 +62,7 @@ namespace PlaylistMaker.Services
 
             foreach (TagEditRow row in rows)
             {
-                List<string> haystack = BuildHaystack(row, includeFolderNames, allFolderLevels);
+                List<string> haystack = BuildHaystack(row.FilePath, includeFolderNames, allFolderLevels);
 
                 string? artist = null;
                 if (fillArtist)
@@ -91,14 +91,10 @@ namespace PlaylistMaker.Services
         }
 
         /// <summary>The texts a typed name is looked for in: the file name, plus folder names when asked.</summary>
-        private static List<string> BuildHaystack(TagEditRow row, bool includeFolderNames, bool allFolderLevels)
+        public static List<string> BuildHaystack(string filePath, bool includeFolderNames, bool allFolderLevels)
         {
             List<string> haystack = new List<string>();
-            string fileName = Path.GetFileNameWithoutExtension(row.FilePath);
-            if (string.IsNullOrEmpty(fileName))
-            {
-                fileName = row.FileName;
-            }
+            string fileName = TryGetFileNameWithoutExtension(filePath);
             if (!string.IsNullOrEmpty(fileName))
             {
                 haystack.Add(fileName);
@@ -106,9 +102,97 @@ namespace PlaylistMaker.Services
 
             if (includeFolderNames)
             {
-                AddFolderNames(row.FolderPath, allFolderLevels, haystack);
+                AddFolderNames(TryGetFolderPath(filePath), allFolderLevels, haystack);
             }
             return haystack;
+        }
+
+        /// <summary>
+        /// Applies one accepted answer from the one-file-at-a-time window to the whole queue: the file
+        /// the user answered for always takes what was typed, every other queued file takes it when its
+        /// file name (or a folder name, when asked) contains it. Matched files leave the queue, so no
+        /// file is ever asked about twice.
+        /// </summary>
+        public static List<TagFillPlan> ApplyAcceptedEntry(
+            IList<string> queue,
+            string acceptedPath,
+            string? artist,
+            string? album,
+            bool includeFolderNames,
+            bool allFolderLevels)
+        {
+            List<TagFillPlan> plans = new List<TagFillPlan>();
+            string? cleanArtist = Clean(artist);
+            string? cleanAlbum = Clean(album);
+            if (cleanArtist == null && cleanAlbum == null)
+            {
+                return plans;
+            }
+
+            List<string> artistCandidates = cleanArtist == null
+                ? new List<string>()
+                : new List<string> { cleanArtist };
+            List<string> albumCandidates = cleanAlbum == null
+                ? new List<string>()
+                : new List<string> { cleanAlbum };
+
+            List<string> matched = new List<string>();
+            foreach (string path in queue)
+            {
+                bool isAcceptedFile = string.Equals(path, acceptedPath, StringComparison.OrdinalIgnoreCase);
+                string? plannedArtist = cleanArtist == null
+                    ? null
+                    : (isAcceptedFile ? cleanArtist : MatchLongest(BuildHaystack(path, includeFolderNames, allFolderLevels), artistCandidates));
+                string? plannedAlbum = cleanAlbum == null
+                    ? null
+                    : (isAcceptedFile ? cleanAlbum : MatchLongest(BuildHaystack(path, includeFolderNames, allFolderLevels), albumCandidates));
+
+                if (plannedArtist == null && plannedAlbum == null)
+                {
+                    continue;
+                }
+
+                plans.Add(new TagFillPlan(path, plannedArtist, plannedAlbum));
+                matched.Add(path);
+            }
+
+            foreach (string path in matched)
+            {
+                queue.Remove(path);
+            }
+            return plans;
+        }
+
+        private static string TryGetFileNameWithoutExtension(string filePath)
+        {
+            if (string.IsNullOrWhiteSpace(filePath))
+            {
+                return string.Empty;
+            }
+            try
+            {
+                return Path.GetFileNameWithoutExtension(filePath) ?? string.Empty;
+            }
+            catch (ArgumentException)
+            {
+                return string.Empty;
+            }
+        }
+
+        private static string TryGetFolderPath(string filePath)
+        {
+            if (string.IsNullOrWhiteSpace(filePath))
+            {
+                return string.Empty;
+            }
+            try
+            {
+                return Path.GetDirectoryName(filePath) ?? string.Empty;
+            }
+            catch (ArgumentException)
+            {
+                return string.Empty;
+            }
         }
 
         /// <summary>

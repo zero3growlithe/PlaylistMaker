@@ -10,6 +10,7 @@ namespace PlaylistMaker.Views
             bool fillAlbum,
             bool includeFolderNames,
             bool allFolderLevels,
+            bool oneFileAtATime,
             bool skipWhenArtistPresent,
             bool skipWhenAlbumPresent)
         {
@@ -17,6 +18,7 @@ namespace PlaylistMaker.Views
             FillAlbum = fillAlbum;
             IncludeFolderNames = includeFolderNames;
             AllFolderLevels = allFolderLevels;
+            OneFileAtATime = oneFileAtATime;
             SkipWhenArtistPresent = skipWhenArtistPresent;
             SkipWhenAlbumPresent = skipWhenAlbumPresent;
         }
@@ -30,6 +32,9 @@ namespace PlaylistMaker.Views
 
         /// <summary>True when every folder above the track counts, false for the folder that holds it.</summary>
         public bool AllFolderLevels { get; }
+
+        /// <summary>True when the names should be asked for one file at a time instead of in one list.</summary>
+        public bool OneFileAtATime { get; }
 
         public bool SkipWhenArtistPresent { get; }
 
@@ -50,6 +55,9 @@ namespace PlaylistMaker.Views
             ApplyFolderLevelState();
         }
 
+        /// <summary>True when the "one file at a time" button closed the window.</summary>
+        public bool OneFileAtATime { get; private set; }
+
         /// <summary>The chosen options, or null when the user cancelled.</summary>
         public static GenerateTagsOptions? Ask(Window owner, int trackCount)
         {
@@ -66,6 +74,7 @@ namespace PlaylistMaker.Views
                 window.FillAlbumCheck.IsChecked == true,
                 includeFolderNames,
                 includeFolderNames && window.FolderLevelAllRadio.IsChecked == true,
+                window.OneFileAtATime,
                 window.SkipArtistCheck.IsChecked == true,
                 window.SkipAlbumCheck.IsChecked == true);
         }
@@ -83,15 +92,36 @@ namespace PlaylistMaker.Views
             FolderLevelAllRadio.IsEnabled = useFolders;
         }
 
-        private void OnOkClick(object sender, RoutedEventArgs e)
+        private void OnAllFilesClick(object sender, RoutedEventArgs e)
         {
-            if (FillArtistCheck.IsChecked != true && FillAlbumCheck.IsChecked != true)
+            if (!ValidateTagChoice())
             {
-                MessageBox.Show(this, "Pick at least one tag to fill in: the artist, the album, or both.",
-                    "Generate ID3 tags", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
+            OneFileAtATime = false;
             DialogResult = true;
+        }
+
+        private void OnOneFileAtATimeClick(object sender, RoutedEventArgs e)
+        {
+            if (!ValidateTagChoice())
+            {
+                return;
+            }
+            OneFileAtATime = true;
+            DialogResult = true;
+        }
+
+        private bool ValidateTagChoice()
+        {
+            if (FillArtistCheck.IsChecked == true || FillAlbumCheck.IsChecked == true)
+            {
+                return true;
+            }
+
+            MessageBox.Show(this, "Pick at least one tag to fill in: the artist, the album, or both.",
+                "Generate ID3 tags", MessageBoxButton.OK, MessageBoxImage.Information);
+            return false;
         }
     }
 }

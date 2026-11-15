@@ -1586,23 +1586,19 @@ namespace PlaylistMaker
                 return;
             }
 
-            List<TagEditRow>? rows = GenerateTagsWindow.Ask(this, targets, options.FillArtist, options.FillAlbum);
-            if (rows == null)
+            List<TagFillPlan>? plans = options.OneFileAtATime
+                ? GenerateTagsOneByOneWindow.Ask(this, targets, options)
+                : AskTagsInOneList(targets, options);
+            if (plans == null)
             {
                 UpdateSummary("Tag generation cancelled.");
                 return;
             }
 
-            List<TagFillPlan> plans = TagFillPlanner.Build(
-                rows,
-                options.FillArtist,
-                options.FillAlbum,
-                options.IncludeFolderNames,
-                options.AllFolderLevels);
             if (plans.Count == 0)
             {
                 MessageBox.Show(this,
-                    "No names were typed, so no tags were written. Type a name next to at least one "
+                    "No names were typed, so no tags were written. Type a name for at least one "
                     + "track to fill it in.",
                     "Generate ID3 tags", MessageBoxButton.OK, MessageBoxImage.Information);
                 UpdateSummary("Nothing typed - no tags written.");
@@ -1610,6 +1606,23 @@ namespace PlaylistMaker
             }
 
             WriteTagPlans(plans, alreadyTagged, unsupportedFormat);
+        }
+
+        /// <summary>The "all files at once" path: one row per track, then a single matching pass.</summary>
+        private List<TagFillPlan>? AskTagsInOneList(List<string> targets, GenerateTagsOptions options)
+        {
+            List<TagEditRow>? rows = GenerateTagsWindow.Ask(this, targets, options.FillArtist, options.FillAlbum);
+            if (rows == null)
+            {
+                return null;
+            }
+
+            return TagFillPlanner.Build(
+                rows,
+                options.FillArtist,
+                options.FillAlbum,
+                options.IncludeFolderNames,
+                options.AllFolderLevels);
         }
 
         /// <summary>Writes the planned values, then reports what happened to every track.</summary>

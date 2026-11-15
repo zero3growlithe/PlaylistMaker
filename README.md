@@ -56,6 +56,11 @@ Right-click a folder (or several) in the tree and pick **Generate ID3 tags from 
 
 With folder names switched on, the same lookup also runs against the folder that holds the track (or against every folder above it), which is how an album that only exists as a folder name reaches all the tracks below that folder without typing anything per track - `...\Daft Punk\Discovery\CD2\07 - Aeroplane.mp3` picks up `Discovery` from the folder even though no file name mentions it. Drive letters are never matched.
 
+The options window has two buttons at the bottom, both using the same options:
+
+- **All files at once** - one window with a row per track, exactly as described above.
+- **One file at a time** - one window per track, showing the **full path** (read only, selectable so it can be copied) with **Accept**, **Skip file**, **Skip folder** and **Skip all files**. Accept applies the typed names to the file you are looking at *and* to every other queued file whose name matches, and those files leave the queue - so one accept can finish a whole album folder. **Skip file** drops just that one, **Skip folder** drops the rest of the folder it sits in, **Skip all files** stops asking and writes everything accepted so far, and Cancel writes nothing. The header keeps count of how many files are left and how many tracks are lined up for writing.
+
 The longest matching name wins (`Daft Punk Alive` beats `Daft Punk` for the same file), and a value that is already in the tags is not rewritten. Only **MP3** (ID3v2, and ID3v1 when the file still carries one) and **FLAC** (Vorbis comment) files are written - the rest are reported in the summary instead of being touched. The existing tag is read back first, so title, track number and every other frame are kept; only `TPE1`/`TALB` are replaced. Each file is rewritten next to itself and swapped in, so a failure half way never leaves a half written track.
 
 ### *Use relative paths* on a playlist you already have

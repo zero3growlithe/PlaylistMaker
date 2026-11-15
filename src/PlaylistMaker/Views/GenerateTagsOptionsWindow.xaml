@@ -45,7 +45,8 @@
                    Text="With folder names on, an album name typed once also fills in every track below the folder that carries that name. Skipped tracks are not shown in the next window at all, so their tags stay as they are." />
 
         <StackPanel Grid.Row="12" Orientation="Horizontal" HorizontalAlignment="Right">
-            <Button Content="OK" IsDefault="True" Click="OnOkClick" />
+            <Button Content="All files at once" IsDefault="True" Click="OnAllFilesClick" />
+            <Button Content="One file at a time" Click="OnOneFileAtATimeClick" />
             <Button Content="Cancel" IsCancel="True" />
         </StackPanel>
     </Grid>
