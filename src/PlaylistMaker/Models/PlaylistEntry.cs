@@ -159,6 +159,18 @@ namespace PlaylistMaker.Models
             RaisePropertyChanged(nameof(Exists));
         }
 
+        /// <summary>Drops the cached tags of this file so the grid re-reads the values from disk.</summary>
+        public void InvalidateTags()
+        {
+            metadataLoaded = false;
+            metadata = null;
+            RaisePropertyChanged(nameof(TrackName));
+            RaisePropertyChanged(nameof(Album));
+            RaisePropertyChanged(nameof(Artist));
+            RaisePropertyChanged(nameof(TrackNumber));
+            RaisePropertyChanged(nameof(HasTags));
+        }
+
         public void PointTo(string fullPath)
         {
             FullPath = fullPath ?? string.Empty;

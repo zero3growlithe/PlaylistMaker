@@ -5,19 +5,23 @@ namespace PlaylistMaker.Views
     /// <summary>Asks whether a folder should be scanned one level deep or recursively.</summary>
     public partial class ScopeSelectionWindow : Window
     {
-        public ScopeSelectionWindow(string message)
+        public ScopeSelectionWindow(string message, string? windowTitle)
         {
             InitializeComponent();
             MessageText.Text = message;
+            if (!string.IsNullOrWhiteSpace(windowTitle))
+            {
+                Title = windowTitle!;
+            }
         }
 
         /// <summary>True when the user picked the recursive option.</summary>
         public bool Recursive => RecursiveRadio.IsChecked == true;
 
         /// <summary>Returns true/false for the chosen scope, or null when cancelled.</summary>
-        public static bool? Ask(Window owner, string message)
+        public static bool? Ask(Window owner, string message, string? windowTitle = null)
         {
-            ScopeSelectionWindow window = new ScopeSelectionWindow(message);
+            ScopeSelectionWindow window = new ScopeSelectionWindow(message, windowTitle);
             window.Owner = owner;
             bool? result = window.ShowDialog();
             if (result != true)

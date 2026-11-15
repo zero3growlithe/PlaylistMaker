@@ -25,7 +25,7 @@ Built with WPF on .NET 8. No external packages, no telemetry, no installer - one
 - Closing a tab that still has unsaved work asks whether to save first, and the app asks per tab before it exits.
 - Each tab has its own undo history and its own dirty marker (a `*` after the name).
 - **Columns**: index, track name, path, album, artist, length and file size. Drag a header to reorder the columns, drag the header edge to resize, and **right-click any header** for a checklist that hides and shows each column (one column always stays visible, and *Show all columns* brings them back). Order, widths and visibility are remembered between launches in `%APPDATA%\PlaylistMaker\settings.json`.
-- **Sort...** orders the current playlist by track number (from tags), file name, track name, file size, track length, album name or artist name - each ascending or descending - or shuffles it. Sorting is a normal edit, so `Ctrl+Z` restores the previous order. Ties fall back to the full path so the result is stable, and entries with an unknown length always sort to the end.
+- **Sort...** orders the current playlist by track number (from tags), file name, track name, file size, track length, album name, artist name or **folder order** - each ascending or descending - or shuffles it. Sorting is a normal edit, so `Ctrl+Z` restores the previous order. Ties fall back to the full path so the result is stable, and entries with an unknown length always sort to the end.
 - Reorderable list: drag entries around, or move them with the keyboard. Deleting keeps the selection at the same index (clamped to the new end), so repeated `Delete` presses work down a list without re-clicking.
 - Accepts drops from the tree, from Windows Explorer, and from the playlist itself.
 - Dropping a playlist file pulls in its entries instead of the file.
@@ -37,10 +37,24 @@ Built with WPF on .NET 8. No external packages, no telemetry, no installer - one
 - Multiple selected music files: *Add to playlist* and *Save as playlist...*.
 - **Multiple selected folders: *Save each as playlist...*** - walks the folders one by one and treats each exactly like *Save as playlist*: the folder name is the default file name, the file is written next to the music, and a small dialog per folder offers **Save**, **Skip this folder** and **Cancel all** (Cancel all stops the whole run instead of just the current folder).
 - Playlist file: *Add to playlist* and ***Use relative paths*** (see below).
+- Folder: ***Generate ID3 tags from file names...*** (see below).
 
-*Save as playlist* additionally asks for the order: ID3 tag track number, file name A-Z, file name Z-A, track name A-Z, track name Z-A, or random. *Save each as playlist* asks that once and applies the same order to every folder.
+*Save as playlist* additionally asks for the order: ID3 tag track number, **folder by folder**, file name A-Z, file name Z-A, track name A-Z, track name Z-A, or random. *Save each as playlist* asks that once and applies the same order to every folder.
+
+**Folder by folder** writes the tracks of the folder itself first, then the tracks of the first subfolder, then the next subfolder, and so on, depth first - each of those again with its own files before its own subfolders, and file names in natural order inside one folder. A plain file-name sort mixes the discs of a multi-disc release together (`CD2\01 - Intro.mp3` files compete with `01 - Intro.mp3`), which is exactly what this mode avoids. The same mode is in **Sort...**, so an existing playlist can be put back in folder order too.
 
 When you save a single selected folder, the default playlist name is **that folder's name** (sanitised for Windows).
+
+### *Generate ID3 tags from file names*
+
+Right-click a folder (or several) in the tree and pick **Generate ID3 tags from file names...** to fill in artist and album from names you type once:
+
+1. It asks whether to take only the files directly inside the folders or all subfolders too.
+2. It asks what to fill in (**artist**, **album**, or both) and whether to **skip tracks that already have an artist and/or album** - skipped tracks are not shown at all, so their tags stay as they are.
+3. It lists every remaining track: the **file name** (read only, but selectable so you can copy it) next to an empty **artist** and/or **album** box.
+4. When you confirm, every name you typed is looked for in the file names of the whole selection, ignoring case: each track whose file name contains it gets that tag written. A track with nothing typed next to it and no name matching its file name is left alone, so an empty box is how you skip a track.
+
+The longest matching name wins (`Daft Punk Alive` beats `Daft Punk` for the same file), and a value that is already in the tags is not rewritten. Only **MP3** (ID3v2, and ID3v1 when the file still carries one) and **FLAC** (Vorbis comment) files are written - the rest are reported in the summary instead of being touched. The existing tag is read back first, so title, track number and every other frame are kept; only `TPE1`/`TALB` are replaced. Each file is rewritten next to itself and swapped in, so a failure half way never leaves a half written track.
 
 ### *Use relative paths* on a playlist you already have
 
@@ -76,7 +90,7 @@ The save dialog starts in the deepest folder that contains every track of the pl
 
 - Playlists: `.m3u`, `.m3u8` (read and write), `.pls` (read only - *Use relative paths* rewrites only its `FileN=` values, the app never creates a `.pls`).
 - Music: mp3, mp2, flac, m4a, m4b, aac, ogg, oga, opus, wav, wma, aiff, aif, ape, wv, alac, dsf, dff, mpc, spx, tta, mid, midi, mod, xm, it, s3m, vgm, vgz, nsf, spc, psf, gbs.
-- Title, track number, album and artist are read from ID3v2 tags (MP3) and Vorbis comments (FLAC/OGG). Other formats fall back to the file name, e.g. `03 - Intro.flac` becomes track 3, "Intro".
+- Title, track number, album and artist are read from ID3v2 tags (MP3) and Vorbis comments (FLAC/OGG). Other formats fall back to the file name, e.g. `03 - Intro.flac` becomes track 3, "Intro". Artist and album can be written back into MP3 (ID3v2.3/2.4, plus ID3v1 if present) and FLAC (Vorbis comment) files - see *Generate ID3 tags from file names*.
 - Track lengths are read straight out of the container headers - no decoding and no external library: MP3 (Xing/Info frame count, otherwise a constant-bitrate estimate), FLAC (STREAMINFO), WAV (RIFF fmt/data), OGG/Opus (last granule position) and M4A/MP4 (mvhd box). Formats outside that list show a dash instead of a length. Metadata, lengths and sizes are read lazily per row, so a 50 000 track playlist only pays for what is on screen.
 
 ## Build

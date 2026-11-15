@@ -688,6 +688,38 @@ namespace PlaylistMaker.ViewModels
             }
         }
 
+        /// <summary>
+        /// Forgets the tags of freshly retagged files everywhere they are visible: the reader cache
+        /// and the entries of every tab, so the artist/album columns show the new values.
+        /// </summary>
+        public int InvalidateTagCaches(IEnumerable<string> filePaths)
+        {
+            HashSet<string> paths = new HashSet<string>(filePaths, StringComparer.OrdinalIgnoreCase);
+            if (paths.Count == 0)
+            {
+                return 0;
+            }
+
+            foreach (string path in paths)
+            {
+                TagReader.Forget(path);
+            }
+
+            int refreshed = 0;
+            foreach (PlaylistTab tab in Tabs)
+            {
+                foreach (PlaylistEntry entry in tab.Entries)
+                {
+                    if (paths.Contains(entry.FullPath))
+                    {
+                        entry.InvalidateTags();
+                        refreshed++;
+                    }
+                }
+            }
+            return refreshed;
+        }
+
         private static void CollectPaths(string path, List<string> sink)
         {
             if (string.IsNullOrWhiteSpace(path))

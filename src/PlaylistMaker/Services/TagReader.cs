@@ -47,6 +47,20 @@ namespace PlaylistMaker.Services
             }
         }
 
+        /// <summary>Drops the cached values of one file, for when its tags were just rewritten.</summary>
+        public static void Forget(string filePath)
+        {
+            if (string.IsNullOrWhiteSpace(filePath))
+            {
+                return;
+            }
+
+            lock (CacheLock)
+            {
+                Cache.Remove(filePath);
+            }
+        }
+
         private static TrackMetadata ReadCore(string filePath)
         {
             string extension = Path.GetExtension(filePath);

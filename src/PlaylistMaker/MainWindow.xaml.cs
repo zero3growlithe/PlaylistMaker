@@ -6,6 +6,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -647,6 +648,18 @@ namespace PlaylistMaker
                 menu.Items.Add(saveEachItem);
             }
 
+            if (containsFolder)
+            {
+                MenuItem tagsItem = new MenuItem
+                {
+                    Header = "Generate ID3 tags from file names...",
+                    ToolTip = "Asks for the artist and album names once and writes them into every track "
+                              + "of the folder whose file name contains that name."
+                };
+                tagsItem.Click += OnGenerateTagsFromFileNamesClick;
+                menu.Items.Add(tagsItem);
+            }
+
             menu.Items.Add(new Separator());
             MenuItem explorerItem = new MenuItem { Header = "View in Explorer" };
             explorerItem.Click += OnViewSelectedInExplorerClick;
@@ -681,6 +694,11 @@ namespace PlaylistMaker
         private void OnSaveEachFolderAsPlaylistClick(object sender, RoutedEventArgs e)
         {
             SaveEachFolderAsPlaylist();
+        }
+
+        private void OnGenerateTagsFromFileNamesClick(object sender, RoutedEventArgs e)
+        {
+            GenerateTagsFromFileNames();
         }
 
         private void OnViewSelectedInExplorerClick(object sender, RoutedEventArgs e)
@@ -1474,6 +1492,254 @@ namespace PlaylistMaker
                 summary += "; " + emptyCount + " had no music";
             }
             UpdateSummary(summary + ".");
+        }
+
+        // ── Tags from file names ──────────────────────────────────────────
+        /// <summary>
+        /// Reads the artist and album names the user types next to a few tracks and writes them into
+        /// every track of the selection whose file name contains that name.
+        /// </summary>
+        private void GenerateTagsFromFileNames()
+        {
+            List<FileSystemNode> folders = GetSelectedNodes().Where(node => node.IsFolder).ToList();
+            if (folders.Count == 0)
+            {
+                UpdateSummary("Select at least one folder.");
+                return;
+            }
+
+            string scopeMessage = folders.Count == 1
+                ? "Generate ID3 tags for the tracks in \"" + folders[0].FullPath
+                  + "\": only the files directly inside, or including subfolders?"
+                : "Generate ID3 tags for the tracks in " + folders.Count
+                  + " folders: only the files directly inside them, or including subfolders?";
+            bool? recursive = ScopeSelectionWindow.Ask(this, scopeMessage, "Generate ID3 tags from file names");
+            if (recursive == null)
+            {
+                return;
+            }
+
+            List<string> collected = CollectMusicFromFolders(folders, recursive.Value);
+            if (collected.Count == 0)
+            {
+                UpdateSummary("No music files in that selection.");
+                return;
+            }
+
+            List<string> writable = new List<string>();
+            int unsupportedFormat = 0;
+            foreach (string file in collected)
+            {
+                if (TagWriter.CanWrite(file))
+                {
+                    writable.Add(file);
+                }
+                else
+                {
+                    unsupportedFormat++;
+                }
+            }
+
+            if (writable.Count == 0)
+            {
+                MessageBox.Show(this,
+                    "None of the " + collected.Count + " tracks is an MP3 or FLAC file. Those are the two "
+                    + "formats this app knows how to write tags into, so nothing was changed.",
+                    "Generate ID3 tags", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            GenerateTagsOptions? options = GenerateTagsOptionsWindow.Ask(this, writable.Count);
+            if (options == null)
+            {
+                return;
+            }
+
+            List<string> targets = new List<string>();
+            int alreadyTagged = 0;
+            if (options.SkipWhenArtistPresent || options.SkipWhenAlbumPresent)
+            {
+                foreach (string file in writable)
+                {
+                    TrackMetadata metadata = TagReader.Read(file);
+                    bool hasArtist = metadata.FromTags && !string.IsNullOrWhiteSpace(metadata.Artist);
+                    bool hasAlbum = metadata.FromTags && !string.IsNullOrWhiteSpace(metadata.Album);
+                    if ((options.SkipWhenArtistPresent && hasArtist) || (options.SkipWhenAlbumPresent && hasAlbum))
+                    {
+                        alreadyTagged++;
+                        continue;
+                    }
+                    targets.Add(file);
+                }
+            }
+            else
+            {
+                targets.AddRange(writable);
+            }
+
+            if (targets.Count == 0)
+            {
+                MessageBox.Show(this,
+                    "Every track already has the tag you asked to skip, so there is nothing left to fill in.",
+                    "Generate ID3 tags", MessageBoxButton.OK, MessageBoxImage.Information);
+                UpdateSummary("Nothing to tag.");
+                return;
+            }
+
+            List<TagEditRow>? rows = GenerateTagsWindow.Ask(this, targets, options.FillArtist, options.FillAlbum);
+            if (rows == null)
+            {
+                UpdateSummary("Tag generation cancelled.");
+                return;
+            }
+
+            List<TagFillPlan> plans = TagFillPlanner.Build(rows, options.FillArtist, options.FillAlbum);
+            if (plans.Count == 0)
+            {
+                MessageBox.Show(this,
+                    "No names were typed, so no tags were written. Type a name next to at least one "
+                    + "track to fill it in.",
+                    "Generate ID3 tags", MessageBoxButton.OK, MessageBoxImage.Information);
+                UpdateSummary("Nothing typed - no tags written.");
+                return;
+            }
+
+            WriteTagPlans(plans, alreadyTagged, unsupportedFormat);
+        }
+
+        /// <summary>Writes the planned values, then reports what happened to every track.</summary>
+        private void WriteTagPlans(List<TagFillPlan> plans, int alreadyTagged, int unsupportedFormat)
+        {
+            int written = 0;
+            int artistWrites = 0;
+            int albumWrites = 0;
+            int upToDate = 0;
+            List<string> failures = new List<string>();
+            List<string> touched = new List<string>();
+
+            foreach (TagFillPlan plan in plans)
+            {
+                TrackMetadata existing = TagReader.Read(plan.FilePath);
+                string? artistToWrite = plan.Artist;
+                string? albumToWrite = plan.Album;
+                if (artistToWrite != null && existing.FromTags && IsSameText(existing.Artist, artistToWrite))
+                {
+                    artistToWrite = null;
+                }
+                if (albumToWrite != null && existing.FromTags && IsSameText(existing.Album, albumToWrite))
+                {
+                    albumToWrite = null;
+                }
+                if (artistToWrite == null && albumToWrite == null)
+                {
+                    upToDate++;
+                    continue;
+                }
+
+                TagWriteResult result = TagWriter.Write(plan.FilePath, artistToWrite, albumToWrite);
+                if (result.Written)
+                {
+                    written++;
+                    if (artistToWrite != null)
+                    {
+                        artistWrites++;
+                    }
+                    if (albumToWrite != null)
+                    {
+                        albumWrites++;
+                    }
+                    touched.Add(plan.FilePath);
+                    continue;
+                }
+
+                string fileName = Path.GetFileName(plan.FilePath) ?? plan.FilePath;
+                if (result.Outcome == TagWriteOutcome.UnsupportedFormat)
+                {
+                    unsupportedFormat++;
+                    continue;
+                }
+                failures.Add(fileName + ": " + (result.Message ?? "could not be written"));
+            }
+
+            viewModel.InvalidateTagCaches(touched);
+
+            StringBuilder report = new StringBuilder();
+            report.Append("Tags written to ").Append(written).Append(written == 1 ? " track" : " tracks");
+            report.Append(" (artist in ").Append(artistWrites).Append(", album in ").Append(albumWrites).AppendLine(").");
+            if (upToDate > 0)
+            {
+                report.AppendLine("Already up to date, left alone: " + upToDate);
+            }
+            if (alreadyTagged > 0)
+            {
+                report.AppendLine("Skipped, already had the tag: " + alreadyTagged);
+            }
+            if (unsupportedFormat > 0)
+            {
+                report.AppendLine("Left out, format without tag writing: " + unsupportedFormat);
+            }
+            if (failures.Count > 0)
+            {
+                report.AppendLine("Could not be written: " + failures.Count);
+                int shown = 0;
+                foreach (string failure in failures)
+                {
+                    if (shown == 8)
+                    {
+                        report.AppendLine("  ... and " + (failures.Count - shown) + " more");
+                        break;
+                    }
+                    report.AppendLine("  - " + failure);
+                    shown++;
+                }
+            }
+
+            MessageBox.Show(this, report.ToString().TrimEnd(), "Generate ID3 tags",
+                MessageBoxButton.OK, failures.Count > 0 ? MessageBoxImage.Warning : MessageBoxImage.Information);
+
+            string status = written + " track" + (written == 1 ? string.Empty : "s") + " tagged";
+            if (upToDate > 0)
+            {
+                status += ", " + upToDate + " already up to date";
+            }
+            if (alreadyTagged > 0)
+            {
+                status += ", " + alreadyTagged + " skipped";
+            }
+            if (unsupportedFormat > 0)
+            {
+                status += ", " + unsupportedFormat + " in an unsupported format";
+            }
+            if (failures.Count > 0)
+            {
+                status += ", " + failures.Count + " failed";
+            }
+            UpdateSummary(status + ".");
+        }
+
+        private static bool IsSameText(string? left, string? right)
+        {
+            string leftText = (left ?? string.Empty).Trim();
+            string rightText = (right ?? string.Empty).Trim();
+            return leftText.Length > 0 && string.Equals(leftText, rightText, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>Collects the music of every selected folder once, in folder tree order.</summary>
+        private static List<string> CollectMusicFromFolders(IEnumerable<FileSystemNode> folders, bool recursive)
+        {
+            List<string> collected = new List<string>();
+            HashSet<string> seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (FileSystemNode folder in folders)
+            {
+                foreach (string file in CollectMusicFromFolder(folder.FullPath, recursive))
+                {
+                    if (seen.Add(file))
+                    {
+                        collected.Add(file);
+                    }
+                }
+            }
+            return PlaylistOrdering.OrderByFolderSequence(collected);
         }
 
         // ── Drops onto the tree: real file and folder operations ──────────
