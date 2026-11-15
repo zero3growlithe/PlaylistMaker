@@ -8,6 +8,7 @@ namespace PlaylistMaker.Models
         FileNameDescending,
         TrackNameAscending,
         TrackNameDescending,
+        FolderOrder,
         Random
     }
 }

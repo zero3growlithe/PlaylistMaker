@@ -17,7 +17,9 @@ namespace PlaylistMaker.Services
                 return result;
             }
 
-            Comparison<PlaylistEntry> comparison = BuildComparison(field);
+            Comparison<PlaylistEntry> comparison = field == PlaylistSortField.FolderOrder
+                ? BuildFolderOrderComparison(entries)
+                : BuildComparison(field);
             result.Sort((left, right) =>
             {
                 int nullRank = CompareMissingRank(field, left, right);
@@ -36,9 +38,26 @@ namespace PlaylistMaker.Services
                     return primary;
                 }
 
+                if (field == PlaylistSortField.FolderOrder)
+                {
+                    // the folder comparison already orders by folder and then by file name
+                    return 0;
+                }
+
                 return NaturalStringComparer.Instance.Compare(left.FullPath, right.FullPath);
             });
             return result;
+        }
+
+        /// <summary>
+        /// Folder order needs to see the whole playlist at once: the tracks of a folder read before
+        /// the tracks of its subfolders, so a multi-disc album stops being interleaved.
+        /// </summary>
+        private static Comparison<PlaylistEntry> BuildFolderOrderComparison(IReadOnlyList<PlaylistEntry> entries)
+        {
+            List<string> paths = entries.Select(entry => entry.FullPath).ToList();
+            FolderSequenceComparer comparer = FolderSequenceComparer.ForPaths(paths);
+            return (left, right) => comparer.Compare(left.FullPath, right.FullPath);
         }
 
         /// <summary>Entries without the value a field sorts on go last, whichever direction is used.</summary>

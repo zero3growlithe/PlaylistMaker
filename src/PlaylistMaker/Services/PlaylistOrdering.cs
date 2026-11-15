@@ -42,6 +42,10 @@ namespace PlaylistMaker.Services
                         .ThenByDescending(GetFileName, NaturalStringComparer.Instance)
                         .ToList();
                 }
+                case PlaylistSortMode.FolderOrder:
+                {
+                    return OrderByFolderSequence(source);
+                }
                 case PlaylistSortMode.Random:
                 {
                     List<string> shuffled = source.ToList();
@@ -62,6 +66,23 @@ namespace PlaylistMaker.Services
                         .ToList();
                 }
             }
+        }
+
+        /// <summary>
+        /// Depth first folder order: the tracks of the folder itself first, then every subfolder in
+        /// natural name order, each of those again with its own files before its own subfolders.
+        /// </summary>
+        public static List<string> OrderByFolderSequence(IEnumerable<string> paths)
+        {
+            List<string> ordered = paths.ToList();
+            if (ordered.Count < 2)
+            {
+                return ordered;
+            }
+
+            FolderSequenceComparer comparer = FolderSequenceComparer.ForPaths(ordered);
+            ordered.Sort((left, right) => comparer.Compare(left, right));
+            return ordered;
         }
 
         private static int TrackNumberOrLargest(string path)

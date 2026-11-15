@@ -15,6 +15,10 @@ namespace PlaylistMaker.Views
         {
             get
             {
+                if (FolderOrderRadio.IsChecked == true)
+                {
+                    return PlaylistSortMode.FolderOrder;
+                }
                 if (FileNameAscendingRadio.IsChecked == true)
                 {
                     return PlaylistSortMode.FileNameAscending;

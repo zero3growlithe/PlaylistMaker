@@ -24,6 +24,7 @@
             <ComboBoxItem Content="Track length" />
             <ComboBoxItem Content="Album name" />
             <ComboBoxItem Content="Artist name" />
+            <ComboBoxItem Content="Folder order (folder, then its subfolders)" />
             <ComboBoxItem Content="Shuffle" />
         </ComboBox>
 

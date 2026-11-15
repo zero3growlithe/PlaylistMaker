@@ -10,6 +10,7 @@ namespace PlaylistMaker.Models
         TrackLength,
         AlbumName,
         ArtistName,
+        FolderOrder,
         Shuffle
     }
 }
