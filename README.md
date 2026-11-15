@@ -50,9 +50,11 @@ When you save a single selected folder, the default playlist name is **that fold
 Right-click a folder (or several) in the tree and pick **Generate ID3 tags from file names...** to fill in artist and album from names you type once:
 
 1. It asks whether to take only the files directly inside the folders or all subfolders too.
-2. It asks what to fill in (**artist**, **album**, or both) and whether to **skip tracks that already have an artist and/or album** - skipped tracks are not shown at all, so their tags stay as they are.
+2. It asks what to fill in (**artist**, **album**, or both), **where the typed names should be looked for** - the file names alone, or the file names *and the folder names*, one level up or every folder above the track - and whether to **skip tracks that already have an artist and/or album**. Skipped tracks are not shown at all, so their tags stay as they are.
 3. It lists every remaining track: the **file name** (read only, but selectable so you can copy it) next to an empty **artist** and/or **album** box.
 4. When you confirm, every name you typed is looked for in the file names of the whole selection, ignoring case: each track whose file name contains it gets that tag written. A track with nothing typed next to it and no name matching its file name is left alone, so an empty box is how you skip a track.
+
+With folder names switched on, the same lookup also runs against the folder that holds the track (or against every folder above it), which is how an album that only exists as a folder name reaches all the tracks below that folder without typing anything per track - `...\Daft Punk\Discovery\CD2\07 - Aeroplane.mp3` picks up `Discovery` from the folder even though no file name mentions it. Drive letters are never matched.
 
 The longest matching name wins (`Daft Punk Alive` beats `Daft Punk` for the same file), and a value that is already in the tags is not rewritten. Only **MP3** (ID3v2, and ID3v1 when the file still carries one) and **FLAC** (Vorbis comment) files are written - the rest are reported in the summary instead of being touched. The existing tag is read back first, so title, track number and every other frame are kept; only `TPE1`/`TALB` are replaced. Each file is rewritten next to itself and swapped in, so a failure half way never leaves a half written track.
 

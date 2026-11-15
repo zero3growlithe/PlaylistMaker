@@ -1593,7 +1593,12 @@ namespace PlaylistMaker
                 return;
             }
 
-            List<TagFillPlan> plans = TagFillPlanner.Build(rows, options.FillArtist, options.FillAlbum);
+            List<TagFillPlan> plans = TagFillPlanner.Build(
+                rows,
+                options.FillArtist,
+                options.FillAlbum,
+                options.IncludeFolderNames,
+                options.AllFolderLevels);
             if (plans.Count == 0)
             {
                 MessageBox.Show(this,
