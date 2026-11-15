@@ -7,10 +7,10 @@ using PlaylistMaker.Services;
 namespace PlaylistMaker.Views
 {
     /// <summary>
-    /// Asks for the artist and album one file at a time, showing the whole path so the file can be
-    /// copied. Accepting a file writes its names into every queued file whose name matches, and those
-    /// leave the queue - so a folder of albums is usually done in a handful of accepts instead of one
-    /// row per track.
+    /// Asks for a search term plus the artist and album one file at a time, showing the whole path so
+    /// the file can be copied. Accepting a file writes the typed values into every queued file whose
+    /// name contains the search term, and those leave the queue - so a folder of albums is usually
+    /// done in a handful of accepts instead of one row per track.
     /// </summary>
     public partial class GenerateTagsOneByOneWindow : Window
     {
@@ -64,6 +64,7 @@ namespace PlaylistMaker.Views
             currentPath = queue[0];
             PathBox.Text = currentPath;
             FileNameText.Text = Path.GetFileName(currentPath) is { Length: > 0 } fileName ? fileName : currentPath;
+            SearchTermBox.Text = string.Empty;
             ArtistBox.Text = string.Empty;
             AlbumBox.Text = string.Empty;
 
@@ -72,18 +73,12 @@ namespace PlaylistMaker.Views
                 + (queue.Count == 1 ? " file still to go" : " files still to go")
                 + " - " + plans.Count + (plans.Count == 1 ? " track lined up for writing." : " tracks lined up for writing.");
 
-            if (options.FillArtist)
-            {
-                ArtistBox.Focus();
-            }
-            else
-            {
-                AlbumBox.Focus();
-            }
+            SearchTermBox.Focus();
         }
 
         private void OnAcceptClick(object sender, RoutedEventArgs e)
         {
+            string? searchTerm = SearchTermBox.Text;
             string? artist = options.FillArtist ? ArtistBox.Text : null;
             string? album = options.FillAlbum ? AlbumBox.Text : null;
             if (string.IsNullOrWhiteSpace(artist) && string.IsNullOrWhiteSpace(album))
@@ -97,6 +92,7 @@ namespace PlaylistMaker.Views
             List<TagFillPlan> applied = TagFillPlanner.ApplyAcceptedEntry(
                 queue,
                 currentPath,
+                searchTerm,
                 artist,
                 album,
                 options.IncludeFolderNames,

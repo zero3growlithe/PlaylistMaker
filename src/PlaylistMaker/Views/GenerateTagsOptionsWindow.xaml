@@ -27,7 +27,7 @@
         <CheckBox Grid.Row="2" x:Name="FillArtistCheck" Content="Artist" IsChecked="True" Margin="0,0,0,4" />
         <CheckBox Grid.Row="3" x:Name="FillAlbumCheck" Content="Album" IsChecked="True" Margin="0,0,0,14" />
 
-        <TextBlock Grid.Row="4" Text="Where should the typed names be looked for?" FontWeight="SemiBold" Margin="0,0,0,6" />
+        <TextBlock Grid.Row="4" Text="Where should the search term be looked for?" FontWeight="SemiBold" Margin="0,0,0,6" />
         <CheckBox Grid.Row="5" x:Name="MatchFoldersCheck" Content="Also look in the names of the folders"
                   Margin="0,0,0,4" Checked="OnMatchFoldersChanged" Unchecked="OnMatchFoldersChanged" />
         <RadioButton Grid.Row="6" x:Name="FolderLevelOneRadio" Content="Only the folder that holds the track"
@@ -42,7 +42,7 @@
 
         <TextBlock Grid.Row="11" Style="{StaticResource HintText}" TextWrapping="Wrap" VerticalAlignment="Top"
                    Margin="0,12,0,0"
-                   Text="With folder names on, an album name typed once also fills in every track below the folder that carries that name. Skipped tracks are not shown in the next window at all, so their tags stay as they are." />
+                   Text="You type the search term itself in the next window, next to each track. With folder names on, a search term that only appears in a folder name still fills in every track below that folder. Skipped tracks are not shown in the next window at all, so their tags stay as they are." />
 
         <StackPanel Grid.Row="12" Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Content="All files at once" IsDefault="True" Click="OnAllFilesClick" />

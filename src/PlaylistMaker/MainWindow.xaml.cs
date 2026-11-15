@@ -1619,8 +1619,8 @@ namespace PlaylistMaker
             if (plans.Count == 0)
             {
                 MessageBox.Show(this,
-                    "No names were typed, so no tags were written. Type a name for at least one "
-                    + "track to fill it in.",
+                    "No artist or album was typed, so no tags were written. Type a search term with "
+                    + "an artist or album on at least one row to fill it in.",
                     "Generate ID3 tags", MessageBoxButton.OK, MessageBoxImage.Information);
                 UpdateSummary("Nothing typed - no tags written.");
                 return;

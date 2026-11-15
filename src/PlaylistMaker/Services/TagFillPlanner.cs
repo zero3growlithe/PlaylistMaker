@@ -25,8 +25,10 @@ namespace PlaylistMaker.Services
     }
 
     /// <summary>
-    /// Turns the names the user typed into per-track tag values: a name typed once is written into
-    /// every track whose file name contains it, which is what makes one pass over a folder enough.
+    /// Turns the search terms the user typed into per-track tag values: a term typed once is written
+    /// into every track whose file name contains it, which is what makes one pass over a folder
+    /// enough. The term is what is looked for, the artist and album are what gets written - they are
+    /// deliberately independent, so typing the artist "Daft Punk" does not also search for it.
     /// </summary>
     public static class TagFillPlanner
     {
@@ -43,18 +45,20 @@ namespace PlaylistMaker.Services
                 return plans;
             }
 
-            List<string> artistCandidates = new List<string>();
-            List<string> albumCandidates = new List<string>();
+            // one list per tag, so a row that only fills in an album can still borrow an artist that
+            // another row's search term put on the same track
+            List<TermValue> artistCandidates = new List<TermValue>();
+            List<TermValue> albumCandidates = new List<TermValue>();
             foreach (TagEditRow row in rows)
             {
-                if (fillArtist)
+                string? term = ResolveSearchTerm(row.SearchTerm, row.FileName);
+                if (term == null)
                 {
-                    AddCandidate(artistCandidates, row.Artist);
+                    continue;
                 }
-                if (fillAlbum)
-                {
-                    AddCandidate(albumCandidates, row.Album);
-                }
+
+                AddCandidate(artistCandidates, term, fillArtist ? Clean(row.Artist) : null);
+                AddCandidate(albumCandidates, term, fillAlbum ? Clean(row.Album) : null);
             }
 
             artistCandidates = SortLongestFirst(artistCandidates);
@@ -64,23 +68,11 @@ namespace PlaylistMaker.Services
             {
                 List<string> haystack = BuildHaystack(row.FilePath, includeFolderNames, allFolderLevels);
 
-                string? artist = null;
-                if (fillArtist)
-                {
-                    // a name that appears in the file name or in a folder name wins, otherwise the
-                    // row's own entry counts
-                    artist = MatchLongest(haystack, artistCandidates) ?? Clean(row.Artist);
-                }
-
-                string? album = null;
-                if (fillAlbum)
-                {
-                    album = MatchLongest(haystack, albumCandidates) ?? Clean(row.Album);
-                }
-
+                string? artist = fillArtist ? MatchLongest(haystack, artistCandidates) : null;
+                string? album = fillAlbum ? MatchLongest(haystack, albumCandidates) : null;
                 if (artist == null && album == null)
                 {
-                    // nothing typed anywhere near this file name: the track is skipped
+                    // no search term of this selection turns up in this file or folder name: skipped
                     continue;
                 }
 
@@ -90,7 +82,7 @@ namespace PlaylistMaker.Services
             return plans;
         }
 
-        /// <summary>The texts a typed name is looked for in: the file name, plus folder names when asked.</summary>
+        /// <summary>The texts a search term is looked for in: the file name, plus folder names when asked.</summary>
         public static List<string> BuildHaystack(string filePath, bool includeFolderNames, bool allFolderLevels)
         {
             List<string> haystack = new List<string>();
@@ -109,13 +101,15 @@ namespace PlaylistMaker.Services
 
         /// <summary>
         /// Applies one accepted answer from the one-file-at-a-time window to the whole queue: the file
-        /// the user answered for always takes what was typed, every other queued file takes it when its
-        /// file name (or a folder name, when asked) contains it. Matched files leave the queue, so no
-        /// file is ever asked about twice.
+        /// the user answered for always takes what was typed, every other queued file takes it when the
+        /// search term turns up in its file name (or in a folder name, when asked). Matched files leave
+        /// the queue, so no file is ever asked about twice. An empty search term targets the answered
+        /// file's own name, which covers the discs of a multi-disc release.
         /// </summary>
         public static List<TagFillPlan> ApplyAcceptedEntry(
             IList<string> queue,
             string acceptedPath,
+            string? searchTerm,
             string? artist,
             string? album,
             bool includeFolderNames,
@@ -129,12 +123,14 @@ namespace PlaylistMaker.Services
                 return plans;
             }
 
-            List<string> artistCandidates = cleanArtist == null
-                ? new List<string>()
-                : new List<string> { cleanArtist };
-            List<string> albumCandidates = cleanAlbum == null
-                ? new List<string>()
-                : new List<string> { cleanAlbum };
+            string? term = ResolveSearchTerm(searchTerm, TryGetFileNameWithoutExtension(acceptedPath));
+            List<TermValue> artistCandidates = new List<TermValue>();
+            List<TermValue> albumCandidates = new List<TermValue>();
+            if (term != null)
+            {
+                AddCandidate(artistCandidates, term, cleanArtist);
+                AddCandidate(albumCandidates, term, cleanAlbum);
+            }
 
             List<string> matched = new List<string>();
             foreach (string path in queue)
@@ -161,6 +157,15 @@ namespace PlaylistMaker.Services
                 queue.Remove(path);
             }
             return plans;
+        }
+
+        /// <summary>
+        /// What the matching runs against for one row: the typed search term, or the file's own name
+        /// when that box was left empty - a row always describes at least the file it belongs to.
+        /// </summary>
+        private static string? ResolveSearchTerm(string? searchTerm, string? fileName)
+        {
+            return Clean(searchTerm) ?? Clean(fileName);
         }
 
         private static string TryGetFileNameWithoutExtension(string filePath)
@@ -196,7 +201,7 @@ namespace PlaylistMaker.Services
         }
 
         /// <summary>
-        /// Adds the folder the track sits in, or every folder above it, so an album name that only
+        /// Adds the folder the track sits in, or every folder above it, so a search term that only
         /// appears in a folder name still reaches all the tracks below that folder.
         /// </summary>
         private static void AddFolderNames(string folderPath, bool allFolderLevels, List<string> haystack)
@@ -233,7 +238,7 @@ namespace PlaylistMaker.Services
 
         private static void AddFolderName(string segment, List<string> haystack)
         {
-            // a drive ("C:") is not a name anyone types, and matching it would tag everything
+            // a drive ("C:\") is not a name anyone types, and matching it would tag everything
             if (segment.Length == 0 || segment.EndsWith(":", StringComparison.Ordinal))
             {
                 return;
@@ -241,54 +246,50 @@ namespace PlaylistMaker.Services
             haystack.Add(segment);
         }
 
-        /// <summary>Longest candidate first, so "Daft Punk Alive" wins over "Daft Punk" for the same track.</summary>
-        public static string? MatchLongest(IReadOnlyList<string> haystack, IReadOnlyList<string> candidates)
+        /// <summary>Longest search term first, so "Daft Punk Alive" wins over "Daft Punk" for the same track.</summary>
+        private static string? MatchLongest(IReadOnlyList<string> haystack, IReadOnlyList<TermValue> candidates)
         {
-            foreach (string candidate in candidates)
+            foreach (TermValue candidate in candidates)
             {
-                if (candidate.Length == 0)
-                {
-                    continue;
-                }
                 foreach (string text in haystack)
                 {
-                    if (text.IndexOf(candidate, StringComparison.OrdinalIgnoreCase) >= 0)
+                    if (text.IndexOf(candidate.Term, StringComparison.OrdinalIgnoreCase) >= 0)
                     {
-                        return candidate;
+                        return candidate.Value;
                     }
                 }
             }
             return null;
         }
 
-        private static void AddCandidate(List<string> candidates, string? value)
+        private static void AddCandidate(List<TermValue> candidates, string term, string? value)
         {
-            string? clean = Clean(value);
-            if (clean == null)
+            if (value == null)
             {
                 return;
             }
-            foreach (string candidate in candidates)
+
+            foreach (TermValue candidate in candidates)
             {
-                if (string.Equals(candidate, clean, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(candidate.Term, term, StringComparison.OrdinalIgnoreCase))
                 {
                     return;
                 }
             }
-            candidates.Add(clean);
+            candidates.Add(new TermValue(term, value));
         }
 
-        private static List<string> SortLongestFirst(List<string> candidates)
+        private static List<TermValue> SortLongestFirst(List<TermValue> candidates)
         {
-            List<string> sorted = new List<string>(candidates);
+            List<TermValue> sorted = new List<TermValue>(candidates);
             sorted.Sort((left, right) =>
             {
-                int byLength = right.Length.CompareTo(left.Length);
+                int byLength = right.Term.Length.CompareTo(left.Term.Length);
                 if (byLength != 0)
                 {
                     return byLength;
                 }
-                return string.Compare(left, right, StringComparison.OrdinalIgnoreCase);
+                return string.Compare(left.Term, right.Term, StringComparison.OrdinalIgnoreCase);
             });
             return sorted;
         }
@@ -301,6 +302,20 @@ namespace PlaylistMaker.Services
             }
             string trimmed = value.Trim();
             return trimmed.Length == 0 ? null : trimmed;
+        }
+
+        /// <summary>One typed search term paired with the value that is written where it turns up.</summary>
+        private sealed class TermValue
+        {
+            public TermValue(string term, string value)
+            {
+                Term = term;
+                Value = value;
+            }
+
+            public string Term { get; }
+
+            public string Value { get; }
         }
     }
 }

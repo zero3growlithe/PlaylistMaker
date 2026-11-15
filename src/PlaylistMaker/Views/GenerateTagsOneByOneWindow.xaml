@@ -1,11 +1,12 @@
 <Window x:Class="PlaylistMaker.Views.GenerateTagsOneByOneWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Generate ID3 tags - one file at a time" Height="384" Width="820"
+        Title="Generate ID3 tags - one file at a time" Height="452" Width="820"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
         Background="{DynamicResource WindowBackground}">
     <Grid Margin="16">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -25,7 +26,19 @@
 
         <TextBlock Grid.Row="3" x:Name="FileNameText" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,12" />
 
-        <Grid Grid.Row="4" x:Name="ArtistRow" Margin="0,0,0,6">
+        <Grid Grid.Row="4" x:Name="SearchTermRow" Margin="0,0,0,6">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="70" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="Search term"
+                       ToolTip="Every queued track whose file name contains this term gets the artist and album you type below. Empty means this file's own name." />
+            <TextBox Grid.Column="1" x:Name="SearchTermBox" Padding="3,2" VerticalContentAlignment="Center"
+                     ToolTip="Every queued track whose file name contains this term gets the artist and album you type below. Empty means this file's own name."
+                     BorderBrush="{DynamicResource PanelBorder}" />
+        </Grid>
+
+        <Grid Grid.Row="5" x:Name="ArtistRow" Margin="0,0,0,6">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="70" />
                 <ColumnDefinition Width="*" />
@@ -35,7 +48,7 @@
                      BorderBrush="{DynamicResource PanelBorder}" />
         </Grid>
 
-        <Grid Grid.Row="5" x:Name="AlbumRow" Margin="0,0,0,6">
+        <Grid Grid.Row="6" x:Name="AlbumRow" Margin="0,0,0,6">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="70" />
                 <ColumnDefinition Width="*" />
@@ -45,11 +58,11 @@
                      BorderBrush="{DynamicResource PanelBorder}" />
         </Grid>
 
-        <TextBlock Grid.Row="6" Style="{StaticResource HintText}" TextWrapping="Wrap" VerticalAlignment="Top"
+        <TextBlock Grid.Row="7" Style="{StaticResource HintText}" TextWrapping="Wrap" VerticalAlignment="Top"
                    Margin="0,10,0,0"
-                   Text="Accept writes the names into every queued track whose file name (and, when you asked for it, whose folder name) contains them, and those tracks leave the queue. Skip file drops this one, Skip folder drops the rest of this file's folder, Skip all files stops asking and writes what you accepted so far. Cancel writes nothing." />
+                   Text="Accept writes the artist and album into every queued track whose file name (and, when you asked for it, whose folder name) contains the search term, and those tracks leave the queue; with an empty search term only this file, plus files carrying the same name, are filled in. Skip file drops this one, Skip folder drops the rest of this file's folder, Skip all files stops asking and writes what you accepted so far. Cancel writes nothing." />
 
-        <StackPanel Grid.Row="7" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+        <StackPanel Grid.Row="8" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
             <Button Content="Accept" IsDefault="True" Click="OnAcceptClick" />
             <Button Content="Skip file" Click="OnSkipFileClick" />
             <Button Content="Skip folder" Click="OnSkipFolderClick" />
