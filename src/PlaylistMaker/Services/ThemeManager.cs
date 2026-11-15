@@ -23,7 +23,6 @@ namespace PlaylistMaker.Services
         private const string LightPaletteSource = "Themes/Light.xaml";
 
         private const string DarkPaletteSource = "Themes/Dark.xaml";
-
         private const int UseImmersiveDarkMode = 20;
 
         private const int UseImmersiveDarkModeBefore20H1 = 19;
@@ -44,6 +43,18 @@ namespace PlaylistMaker.Services
             return string.Equals(theme, nameof(AppTheme.Dark), StringComparison.OrdinalIgnoreCase)
                 ? AppTheme.Dark
                 : AppTheme.Light;
+        }
+
+        /// <summary>
+        /// A fully qualified pack URI, so the lookup never depends on whatever base URI happens to be
+        /// ambient when the dictionary is created in code.
+        /// </summary>
+        private static Uri PaletteUri(string relativePath)
+        {
+            string assemblyName = typeof(ThemeManager).Assembly.GetName().Name ?? "PlaylistMaker";
+            return new Uri(
+                "pack://application:,,,/" + assemblyName + ";component/" + relativePath,
+                UriKind.Absolute);
         }
 
         /// <summary>Applies a theme to the whole application, open windows included.</summary>
@@ -105,7 +116,7 @@ namespace PlaylistMaker.Services
 
             ResourceDictionary replacement = new ResourceDictionary
             {
-                Source = new Uri(theme == AppTheme.Dark ? DarkPaletteSource : LightPaletteSource, UriKind.Relative)
+                Source = PaletteUri(theme == AppTheme.Dark ? DarkPaletteSource : LightPaletteSource)
             };
 
             Collection<ResourceDictionary> merged = application.Resources.MergedDictionaries;
